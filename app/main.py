@@ -1,15 +1,26 @@
 # app/main.py
+
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import init_db
-from app.routers import birthdays, utils, users as users_router
-from app.auth import fastapi_users, auth_backend, current_active_user, current_superuser
+from app.auth import (
+    fastapi_users,
+    auth_backend,
+    current_active_user,
+    current_superuser,
+)
 from app.models import UserRead, UserCreate
+from app.routers import (
+    birthdays,
+    users as users_router,
+    workspaces,
+    utils,
+)
 
 app = FastAPI(title="Birthday Buddy")
 
-# Allow CORS (for local testing)
+# ─── CORS (for local testing) ────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,17 +29,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Create all tables
+# ─── Init database ────────────────────────────────────────────────────────
 init_db()
 
-# ─── Authentication routes ────────────────────────────────────────────
+# ─── Authentication routes ────────────────────────────────────────────────
 app.include_router(
     fastapi_users.get_auth_router(auth_backend),
     prefix="/auth/jwt",
     tags=["auth"],
 )
 app.include_router(
-    # NOTE: here we import UserRead/UserCreate from app.models
     fastapi_users.get_register_router(UserRead, UserCreate),
     prefix="/auth",
     tags=["auth"],
@@ -44,13 +54,36 @@ app.include_router(
     tags=["auth"],
 )
 
-# ─── Application routes ───────────────────────────────────────────────
-app.include_router(utils.router)
+# ─── Application routes ───────────────────────────────────────────────────
+
+# Birthday endpoints (requires any authenticated user)
 app.include_router(
     birthdays.router,
+    prefix="/birthdays",
+    tags=["birthdays"],
     dependencies=[Depends(current_active_user)],
 )
+
+# User endpoints (e.g. profile, self‐service) (requires auth)
 app.include_router(
     users_router.router,
+    prefix="/users",
+    tags=["users"],
     dependencies=[Depends(current_active_user)],
+)
+
+# Workspace CRUD (superuser only)
+app.include_router(
+    workspaces.router,
+    prefix="/workspaces",
+    tags=["workspaces"],
+    dependencies=[Depends(current_superuser)],
+)
+
+# Utility endpoints (run job, ping Slack) (superuser only)
+app.include_router(
+    utils.router,
+    prefix="/utils",
+    tags=["utils"],
+    dependencies=[Depends(current_superuser)],
 )
