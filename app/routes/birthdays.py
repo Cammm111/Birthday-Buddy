@@ -1,4 +1,4 @@
-# app/routes/birthdays.py
+# app/routers/birthdays.py
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import select, Session

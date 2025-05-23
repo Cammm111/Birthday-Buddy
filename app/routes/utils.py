@@ -1,4 +1,4 @@
-# app/routes/utils.py
+# app/routers/utils.py
 
 from fastapi import APIRouter, Depends
 from app.auth import current_superuser

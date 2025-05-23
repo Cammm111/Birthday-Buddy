@@ -11,7 +11,7 @@ from app.auth import (
     current_superuser,
 )
 from app.models import UserRead, UserCreate
-from app.routers import (
+from app.routes import (
     birthdays,
     users as users_router,
     workspaces,

@@ -1,4 +1,4 @@
-# app/routes/users.py
+# app/routers/users.py
 import uuid
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
