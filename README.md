@@ -1,6 +1,6 @@
 # Birthday Buddy
 
-Birthday Buddy is a SaaS application that helps teams schedule and celebrate birthdays, with built-in Slack integration.
+Birthday Buddy is a SaaS application that helps teams celebrate birthdays, with built-in Slack integration.
 
 ## Features
 
