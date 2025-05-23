@@ -85,3 +85,17 @@ Pull requests are welcome! For major changes, open an issue first to discuss wha
 
 ## License
 
+## Admin User (Default Superuser)
+
+When you start the app for the first time, if no admin user exists, one is created automatically using environment variables:
+
+- **Email:** `admin@example.com`
+- **Password:** `adminpassword`
+- **Superuser:** Yes
+
+> **Important:**  
+> For security, **change the admin email and password immediately** after your first login.  
+> In production, you should set these values from environment variables or another secure method.
+
+If an admin already exists, the app will not create a new one.
+

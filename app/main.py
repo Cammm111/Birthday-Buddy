@@ -18,7 +18,19 @@ from app.routes import (
     utils,
 )
 
+# ─── Initialize FastAPI app ──────────────────────────────────────────────
 app = FastAPI(title="Birthday Buddy")
+
+# ─── SlowAPI Rate Limiting ───────────────────────────────────────────────
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+# You can set a default rate limit for ALL endpoints here
+# (adjust as you wish, or omit default_limits to require explicit decorators)
+limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ─── CORS (for local testing) ────────────────────────────────────────────
 app.add_middleware(
@@ -29,10 +41,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ─── Init database ────────────────────────────────────────────────────────
+# ─── Init database ───────────────────────────────────────────────────────
 init_db()
 
-# ─── Authentication routes ────────────────────────────────────────────────
+# ─── Authentication routes ───────────────────────────────────────────────
 app.include_router(
     fastapi_users.get_auth_router(auth_backend),
     prefix="/auth/jwt",
@@ -54,36 +66,25 @@ app.include_router(
     tags=["auth"],
 )
 
-# ─── Application routes ───────────────────────────────────────────────────
+# ─── Custom Application routes ───────────────────────────────────────────
 
-# Birthday endpoints (requires any authenticated user)
 app.include_router(
     birthdays.router,
-    prefix="/birthdays",
     tags=["birthdays"],
     dependencies=[Depends(current_active_user)],
 )
-
-# User endpoints (e.g. profile, self‐service) (requires auth)
 app.include_router(
     users_router.router,
-    prefix="/users",
     tags=["users"],
     dependencies=[Depends(current_active_user)],
 )
-
-# Workspace CRUD (superuser only)
 app.include_router(
     workspaces.router,
-    prefix="/workspaces",
     tags=["workspaces"],
     dependencies=[Depends(current_superuser)],
 )
-
-# Utility endpoints (run job, ping Slack) (superuser only)
 app.include_router(
     utils.router,
-    prefix="/utils",
     tags=["utils"],
     dependencies=[Depends(current_superuser)],
 )

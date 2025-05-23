@@ -1,9 +1,9 @@
 # app/auth.py
-import uuid
-import secrets
-from typing import AsyncGenerator
 
-from fastapi import Depends                       # ← add this
+import uuid
+import os
+from typing import AsyncGenerator
+from fastapi import Depends
 from fastapi_users import FastAPIUsers
 from fastapi_users.authentication import (
     AuthenticationBackend,
@@ -14,12 +14,11 @@ from fastapi_users.manager import BaseUserManager, UUIDIDMixin
 from fastapi_users_db_sqlmodel import SQLModelUserDatabase as _OrigDB
 from passlib.context import CryptContext
 from sqlmodel import Session
-
 from app.db import engine
 from app.models import User
 
 # ──────────────────────────────────────────────────────────────────────
-# 1. User database (patched to accept our Session-based DB)
+# User database (patched to accept our Session-based DB)
 # ──────────────────────────────────────────────────────────────────────
 class PatchedDB(_OrigDB):
     def __init__(self, session: Session):
@@ -36,9 +35,9 @@ def get_user_db() -> PatchedDB:
         session.close()
 
 # ──────────────────────────────────────────────────────────────────────
-# 2. User manager (overrides create to hash passwords)
+# User manager (overrides create to hash passwords + audit hooks)
 # ──────────────────────────────────────────────────────────────────────
-SECRET = secrets.token_urlsafe(32)
+SECRET = os.getenv("JWT_SECRET", "dev-secret-key")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
@@ -46,7 +45,8 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
     verification_token_secret = SECRET
 
     async def create(self, user_create, safe: bool = False):
-        user_dict = user_create.create_update_dict()
+        # Use .model_dump() with pydantic v2+
+        user_dict = user_create.model_dump()
         user_dict["hashed_password"] = pwd_context.hash(user_dict.pop("password"))
         user = User(**user_dict)
         self.db.session.add(user)
@@ -54,11 +54,22 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
         self.db.session.refresh(user)
         return user
 
+    # --- Optional: Audit logging hooks (if you have a logger set up) ---
+    # If not needed, you can remove these methods
+    # async def on_after_register(self, user: User, request=None):
+    #     logger.info(f"User registered: {user.email}")
+    # async def on_after_login(self, user: User, request=None):
+    #     logger.info(f"User logged in: {user.email}")
+    # async def on_after_forgot_password(self, user: User, token: str, request=None):
+    #     logger.info(f"Password reset requested: {user.email}")
+    # async def on_after_request_verify(self, user: User, token: str, request=None):
+    #     logger.info(f"Verification requested: {user.email}")
+
 async def get_user_manager(user_db=Depends(get_user_db)):
     yield UserManager(user_db)
 
 # ──────────────────────────────────────────────────────────────────────
-# 3. Authentication backend & JWT strategy
+# Authentication backend & JWT strategy
 # ──────────────────────────────────────────────────────────────────────
 bearer_transport = BearerTransport(tokenUrl="auth/jwt/login")
 
@@ -72,7 +83,7 @@ auth_backend = AuthenticationBackend(
 )
 
 # ──────────────────────────────────────────────────────────────────────
-# 4. FastAPI-Users instance & dependencies
+# FastAPI-Users instance & dependencies
 # ──────────────────────────────────────────────────────────────────────
 fastapi_users = FastAPIUsers[User, uuid.UUID](
     get_user_manager,

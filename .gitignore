@@ -1,24 +1,53 @@
-# Bytecode and cache
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+*$py.class
 
-# Virtual environments
-venv/
+# C extensions
+*.so
+
+# Virtual environment
 .venv/
+venv/
+ENV/
+env/
+.Python
 
-# Environment/config
+# Environment variables and secret keys
 .env
+.env.*
 
-# Database files
+# Local databases
 *.db
+database.db
+
+# Logs
+*.log
 
 # IDE settings
 .vscode/
 .idea/
 
-# OS-specific
+# OS files
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
+# Test and coverage outputs
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# SlowAPI/limiter cache (if you use in-memory caching or Redis, customize as needed)
+.limiter.cache/
+
+# Misc
+*.bak
+*.swp

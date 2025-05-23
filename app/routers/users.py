@@ -19,7 +19,8 @@ def read_workspace_users(
     session: Session = Depends(get_session),
 ):
     stmt = select(User).where(User.workspace_id == current_user.workspace_id)
-    return session.exec(stmt).all()
+    users = session.exec(stmt).all()
+    return [UserRead.model_validate(u) for u in users]
 
 @router.get(
     "/all",
@@ -28,7 +29,8 @@ def read_workspace_users(
     dependencies=[Depends(current_superuser)],
 )
 def read_all_users(session: Session = Depends(get_session)):
-    return session.exec(select(User)).all()
+    users = session.exec(select(User)).all()
+    return [UserRead.model_validate(u) for u in users]
 
 @router.patch(
     "/{user_id}",
@@ -44,13 +46,13 @@ def update_user(
     user = session.get(User, user_id)
     if not user or user.workspace_id != current_user.workspace_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
-    data = user_update.dict(exclude_unset=True)
+    data = user_update.model_dump(exclude_unset=True)
     for field, value in data.items():
         setattr(user, field, value)
     session.add(user)
     session.commit()
     session.refresh(user)
-    return user
+    return UserRead.model_validate(user)
 
 @router.delete(
     "/{user_id}",
