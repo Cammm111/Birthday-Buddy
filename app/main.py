@@ -1,93 +1,69 @@
 # app/main.py
-import os
-from dotenv import load_dotenv
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "../.env"))
 
-from fastapi import FastAPI, Depends
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI
+from app.core.logging_config import setup_logging
+from app.core.db import init_db
+from app.services.scheduler_service import start_scheduler
+from app.services.auth_service import fastapi_users, auth_backend
+from app.routes.user_route import router as user_router
+from app.routes.birthday_route import router as birthday_router
+from app.routes.workspace_route import router as workspace_router
+from app.routes.utils_route import router as utils_router
 
-from app.db import init_db
-from app.auth import (
-    fastapi_users,
-    auth_backend,
-    current_active_user,
-    current_superuser,
-)
-from app.models import UserRead, UserCreate
-from app.routes import (
-    birthdays,
-    users as users_router,
-    workspaces,
-    utils,
-)
+# Import your Pydantic schemas for auth
+from app.schemas.user_schema import UserRead, UserCreate, UserUpdate
 
-# ─── Initialize FastAPI app ──────────────────────────────────────────────
-app = FastAPI(title="Birthday Buddy")
+# 1) Configure logging first
+setup_logging()
 
-# ─── SlowAPI Rate Limiting ───────────────────────────────────────────────
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
-
-# You can set a default rate limit for ALL endpoints here
-# (adjust as you wish, or omit default_limits to require explicit decorators)
-limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-# ─── CORS (for local testing) ────────────────────────────────────────────
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ─── Init database ───────────────────────────────────────────────────────
+# 2) Initialize database (create tables & seed admin user)
 init_db()
 
-# ─── Authentication routes ───────────────────────────────────────────────
+# 3) Start the background scheduler
+start_scheduler()
+
+# 4) Create FastAPI app
+app = FastAPI(title="Birthday Buddy")
+
+# 5) Wire up FastAPI-Users authentication routes
+
+# JWT login/logout
 app.include_router(
     fastapi_users.get_auth_router(auth_backend),
     prefix="/auth/jwt",
     tags=["auth"],
 )
-# app.include_router(
-#    fastapi_users.get_register_router(UserRead, UserCreate),
-#    prefix="/auth",
-#    tags=["auth"],
-# )
+
+# Registration (needs read & create schemas)
+app.include_router(
+    fastapi_users.get_register_router(UserRead, UserCreate),
+    prefix="/auth",
+    tags=["auth"],
+)
+
+# Reset password
 app.include_router(
     fastapi_users.get_reset_password_router(),
     prefix="/auth",
     tags=["auth"],
 )
-# app.include_router(
-#    fastapi_users.get_verify_router(UserRead),
-#    prefix="/auth",
-#    tags=["auth"],
-# )
 
-# ─── Custom Application routes ───────────────────────────────────────────
+# Email verification (needs read schema)
+app.include_router(
+    fastapi_users.get_verify_router(UserRead),
+    prefix="/auth",
+    tags=["auth"],
+)
 
+# Built-in users CRUD (needs read & update schemas)
 app.include_router(
-    birthdays.router,
-    tags=["birthdays"],
-    dependencies=[Depends(current_active_user)],
+    fastapi_users.get_users_router(UserRead, UserUpdate),
+    prefix="/auth/users",
+    tags=["auth"],
 )
-app.include_router(
-    users_router.router,
-    tags=["users"],
-    dependencies=[Depends(current_active_user)],
-)
-app.include_router(
-    workspaces.router,
-    tags=["workspaces"],
-    dependencies=[Depends(current_superuser)],
-)
-app.include_router(
-    utils.router,
-    tags=["utils"],
-    dependencies=[Depends(current_superuser)],
-)
+
+# 6) Include your custom routers
+app.include_router(user_router)
+app.include_router(birthday_router)
+app.include_router(workspace_router)
+app.include_router(utils_router)
