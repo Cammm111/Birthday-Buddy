@@ -1,4 +1,7 @@
 # app/main.py
+import os
+from dotenv import load_dotenv
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "../.env"))
 
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -50,21 +53,21 @@ app.include_router(
     prefix="/auth/jwt",
     tags=["auth"],
 )
-app.include_router(
-    fastapi_users.get_register_router(UserRead, UserCreate),
-    prefix="/auth",
-    tags=["auth"],
-)
+# app.include_router(
+#    fastapi_users.get_register_router(UserRead, UserCreate),
+#    prefix="/auth",
+#    tags=["auth"],
+# )
 app.include_router(
     fastapi_users.get_reset_password_router(),
     prefix="/auth",
     tags=["auth"],
 )
-app.include_router(
-    fastapi_users.get_verify_router(UserRead),
-    prefix="/auth",
-    tags=["auth"],
-)
+# app.include_router(
+#    fastapi_users.get_verify_router(UserRead),
+#    prefix="/auth",
+#    tags=["auth"],
+# )
 
 # ─── Custom Application routes ───────────────────────────────────────────
 
