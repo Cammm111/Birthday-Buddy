@@ -10,29 +10,32 @@ from app.schemas.birthday_schema import BirthdayRead
 # Time (in seconds) to cache birthday lists
 CACHE_EXPIRE_SECONDS = 60
 
-async def get_cached_birthdays(user_id: UUID) -> Optional[List[BirthdayRead]]:
+
+def get_cached_birthdays(user_id: UUID) -> Optional[List[BirthdayRead]]:
     """
     Retrieve a user’s cached birthdays from Redis.
     Returns a list of BirthdayRead objects if present, else None.
     """
     key = f"birthdays:{user_id}"
-    data = await redis.get(key)
+    data = redis.get(key)  # sync call
     if not data:
         return None
     items = json.loads(data)
     return [BirthdayRead(**item) for item in items]
 
-async def set_cached_birthdays(user_id: UUID, birthdays: List[BirthdayRead]) -> None:
+
+def set_cached_birthdays(user_id: UUID, birthdays: List[BirthdayRead]) -> None:
     """
     Cache a user’s birthday list in Redis for CACHE_EXPIRE_SECONDS.
     """
     key = f"birthdays:{user_id}"
     payload = [b.dict() for b in birthdays]
-    await redis.set(key, json.dumps(payload), ex=CACHE_EXPIRE_SECONDS)
+    redis.set(key, json.dumps(payload), ex=CACHE_EXPIRE_SECONDS)
 
-async def invalidate_birthdays_cache(user_id: UUID) -> None:
+
+def invalidate_birthdays_cache(user_id: UUID) -> None:
     """
     Remove a user’s birthday list from Redis (e.g., after create/update/delete).
     """
     key = f"birthdays:{user_id}"
-    await redis.delete(key)
+    redis.delete(key)

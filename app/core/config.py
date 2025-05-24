@@ -1,33 +1,40 @@
 # app/core/config.py
 
-from pydantic_settings import BaseSettings
-from pydantic import AnyHttpUrl, EmailStr
+from datetime import date
+from pydantic import AnyHttpUrl, EmailStr, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from passlib.context import CryptContext
 
+# create your password‐hasher
+pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 class Settings(BaseSettings):
-    # App metadata
-    app_name: str = "Birthday Buddy"
+    # your existing env-backed fields
+    jwt_secret: str               = Field(..., env="JWT_SECRET")
+    slack_webhook_url: AnyHttpUrl = Field(..., env="SLACK_WEBHOOK_URL")
 
-    # Database
-    database_url: str
+    admin_email: EmailStr    = Field(..., env="ADMIN_EMAIL")
+    admin_password: str      = Field(..., env="ADMIN_PASSWORD")
+    admin_dob: date          = Field(..., env="ADMIN_DOB")  # make sure ADMIN_DOB is in .env
 
-    # Cache
-    redis_url: str
+    redis_url: str           = Field(..., env="REDIS_URL")
+    database_url: str        = Field(..., env="DATABASE_URL")
 
-    # Authentication
-    jwt_secret: str
+    # pydantic-settings config
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",    # or "forbid" if you want to catch typos
+    )
 
-    # Slack integration
-    slack_api_token: str | None = None
-    slack_webhook_url: AnyHttpUrl | None = None
-
-    # Admin user seeding
-    admin_email: EmailStr = "admin@example.com"
-    admin_password: str = "adminpassword"
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    @property
+    def hashed_admin_password(self) -> str:
+        """
+        bcrypt-hash the plain admin_password on demand.
+        Used in init_db() to seed the superuser.
+        """
+        return pwd_ctx.hash(self.admin_password)
 
 
+# instantiate once and import elsewhere
 settings = Settings()

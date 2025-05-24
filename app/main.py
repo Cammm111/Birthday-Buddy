@@ -1,5 +1,6 @@
 # app/main.py
-
+from dotenv import load_dotenv
+load_dotenv() # this will look for a “.env” file in your project root and load it into os.environ
 from fastapi import FastAPI
 from app.core.logging_config import setup_logging
 from app.core.db import init_db
@@ -10,59 +11,40 @@ from app.routes.birthday_route import router as birthday_router
 from app.routes.workspace_route import router as workspace_router
 from app.routes.utils_route import router as utils_router
 
-# Import your Pydantic schemas for auth
-from app.schemas.user_schema import UserRead, UserCreate, UserUpdate
+# Import only the schemas needed for the routers we keep
+from app.schemas.user_schema import UserRead, UserCreate
 
-# 1) Configure logging first
+# 1) Configure logging
 setup_logging()
 
-# 2) Initialize database (create tables & seed admin user)
+# 2) Init database & seed admin
 init_db()
 
-# 3) Start the background scheduler
+# 3) Kick off the daily scheduler
 start_scheduler()
 
-# 4) Create FastAPI app
+# 4) Create the FastAPI app
 app = FastAPI(title="Birthday Buddy")
 
-# 5) Wire up FastAPI-Users authentication routes
+# 5) AUTHENTICATION ROUTES
 
-# JWT login/logout
+# Login & Logout
 app.include_router(
     fastapi_users.get_auth_router(auth_backend),
     prefix="/auth/jwt",
     tags=["auth"],
 )
 
-# Registration (needs read & create schemas)
+# Forgot-Password & Reset-Password
 app.include_router(
-    fastapi_users.get_register_router(UserRead, UserCreate),
+    fastapi_users.get_reset_password_router(),  # provides both POST /forgot-password and POST /reset-password
     prefix="/auth",
     tags=["auth"],
 )
 
-# Reset password
-app.include_router(
-    fastapi_users.get_reset_password_router(),
-    prefix="/auth",
-    tags=["auth"],
-)
+# (No register, verify, or user-CRUD routers here)
 
-# Email verification (needs read schema)
-app.include_router(
-    fastapi_users.get_verify_router(UserRead),
-    prefix="/auth",
-    tags=["auth"],
-)
-
-# Built-in users CRUD (needs read & update schemas)
-app.include_router(
-    fastapi_users.get_users_router(UserRead, UserUpdate),
-    prefix="/auth/users",
-    tags=["auth"],
-)
-
-# 6) Include your custom routers
+# 6) Your other, non-auth routers
 app.include_router(user_router)
 app.include_router(birthday_router)
 app.include_router(workspace_router)

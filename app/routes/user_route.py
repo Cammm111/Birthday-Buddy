@@ -29,15 +29,15 @@ def list_users_endpoint(
 ):
     return list_users(session)
 
-@router.get("/{user_id}", response_model=UserRead)
-def get_user_endpoint(
-    user_id: UUID,
-    session: Session = Depends(get_session),
-):
-    user = get_user(session, user_id)
-    if not user:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
-    return user
+# @router.get("/{user_id}", response_model=UserRead)
+# def get_user_endpoint(
+#     user_id: UUID,
+#     session: Session = Depends(get_session),
+# ):
+#     user = get_user(session, user_id)
+#     if not user:
+#         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+#     return user
 
 @router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def create_user_endpoint(

@@ -1,62 +1,53 @@
 # app/core/db.py
 
 from sqlmodel import SQLModel, create_engine, Session, select
-from redis.asyncio import Redis
-from passlib.context import CryptContext
-
+from sqlalchemy.exc import IntegrityError
+from redis import Redis
 from app.core.config import settings
-from app.models.user_model import User  # corrected import
+from app.models.user_model import User
 
-# --- Password hasher for seeding the admin user ---
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# 1) Database engine & session factory
+engine = create_engine(settings.database_url, echo=True)
+SessionLocal = Session  # alias, same signature as Session(engine)
 
-# --- SQLModel / PostgreSQL engine ---
-engine = create_engine(
-    settings.database_url,
-    echo=True,  # set False in production if too verbose
-)
+# 2) Shared Redis client
+redis = Redis.from_url(settings.redis_url, decode_responses=True)
 
-def get_session():
-    """
-    FastAPI dependency that yields a SQLModel Session and
-    ensures it’s closed after use.
-    """
-    with Session(engine) as session:
-        yield session
-
-# --- Async Redis client for caching, locks, etc. ---
-redis = Redis.from_url(
-    settings.redis_url,
-    encoding="utf-8",
-    decode_responses=True,
-)
 
 def init_db() -> None:
     """
-    Create database tables and seed an admin user if one doesn't exist.
-    Call this on startup (e.g. in main.py).
+    Create all tables and ensure the default admin user exists.
     """
-    # create all tables from your SQLModel models
     SQLModel.metadata.create_all(engine)
 
-    # gather admin credentials from settings
-    admin_email = settings.admin_email
-    admin_password = settings.admin_password
-
-    with Session(engine) as session:
-        # look for any existing superuser
+    with SessionLocal(engine) as session:
+        # look for an existing superuser
         existing = session.exec(
             select(User).where(User.is_superuser == True)
         ).first()
 
         if not existing:
             admin = User(
-                email=admin_email,
-                hashed_password=pwd_context.hash(admin_password),
-                is_superuser=True,
+                email=settings.admin_email,
+                hashed_password=settings.hashed_admin_password,
+                date_of_birth=settings.admin_dob,
                 is_active=True,
+                is_superuser=True,
                 is_verified=True,
-                workspace_id=None,
             )
             session.add(admin)
-            session.commit()
+            try:
+                session.commit()
+            except IntegrityError:
+                session.rollback()
+                # if two processes race, ignore
+def get_session():
+    """
+    Dependency that yields a database session and closes it after use.
+    Usage in your routes:
+        @router.get(..., dependencies=[Depends(get_session)])
+        def read_stuff(db: Session = Depends(get_session)):
+            …
+    """
+    with SessionLocal(engine) as session:
+        yield session
