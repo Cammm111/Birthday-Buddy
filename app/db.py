@@ -1,16 +1,15 @@
 # app/db.py
-
-from sqlmodel import SQLModel, create_engine, Session
-from app.models import User
-from sqlmodel import select
-from passlib.context import CryptContext
 import os
+from sqlmodel import SQLModel, create_engine, Session, select
+from app.models import User
+from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-sqlite_file_name = "database.db"
-sqlite_url = f"sqlite:///{sqlite_file_name}"
 
-engine = create_engine(sqlite_url, echo=True)
+DATABASE_URL = os.getenv("DATABASE_URL")
+print("DEBUG: DATABASE_URL =", os.getenv("DATABASE_URL"))
+
+engine = create_engine(DATABASE_URL, echo=True)
 
 def get_session() -> Session:
     with Session(engine) as session:

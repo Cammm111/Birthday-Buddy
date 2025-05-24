@@ -45,6 +45,7 @@ class UserUpdate(BaseModel):
 class BirthdayBase(SQLModel):
     name: str
     date_of_birth: date
+    user_id: Optional[uuid.UUID] = Field(default=None, foreign_key="user.id")  
 
 class BirthdayCreate(BirthdayBase):
     pass
