@@ -8,7 +8,12 @@ class Workspace(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     name: str
     slack_webhook: str
-    timezone: str
+    # default timezone to New York
+    timezone: str = Field(
+        default="America/New_York",
+        nullable=False,
+        description="IANA timezone name; defaults to New York"
+    )
 
     # a workspace can have many users
     users: List["User"] = Relationship(back_populates="workspace")

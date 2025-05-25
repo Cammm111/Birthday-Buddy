@@ -20,7 +20,7 @@ from app.services.redis_cache_service import (
     set_cached_birthdays,
     invalidate_birthdays_cache,
 )
-from app.services.auth_service import current_active_user
+from app.services.auth_service import current_active_user, current_superuser
 
 router = APIRouter(
     prefix="/birthdays",
@@ -34,9 +34,13 @@ def create_birthday_endpoint(
     session: Session = Depends(get_session),
     user=Depends(current_active_user),
 ):
-    bday = create_birthday(session, user.id, payload)
-    # Invalidate cache so next GET shows updated list
-    invalidate_birthdays_cache(user.id)
+    if user.is_superuser and payload.user_id:
+        target_user_id = payload.user_id
+    else:
+        target_user_id = user.id
+
+    bday = create_birthday(session, target_user_id, payload)
+    invalidate_birthdays_cache(target_user_id)
     return bday
 
 @router.get("/", response_model=List[BirthdayRead])
@@ -44,12 +48,15 @@ def list_birthdays_endpoint(
     session: Session = Depends(get_session),
     user=Depends(current_active_user),
 ):
-    # Try cache first
-    cached = get_cached_birthdays(user.id)
+    lookup_id = user.id if not user.is_superuser else user.id  # or None if superusers should see all
+    # sync cache lookup
+    cached = get_cached_birthdays(lookup_id)
     if cached is not None:
-        return cached
-    items = list_birthdays(session, user.id)
-    set_cached_birthdays(user.id, items)
+        # cached is a list of dicts
+        return [BirthdayRead(**d) for d in cached]
+
+    items = list_birthdays(session, lookup_id)
+    set_cached_birthdays(lookup_id, items)
     return items
 
 @router.get("/{bday_id}", response_model=BirthdayRead)
@@ -58,7 +65,8 @@ def get_birthday_endpoint(
     session: Session = Depends(get_session),
     user=Depends(current_active_user),
 ):
-    bday = get_birthday(session, user.id, bday_id)
+    lookup_id = user.id if not user.is_superuser else user.id
+    bday = get_birthday(session, lookup_id, bday_id)
     if not bday:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Birthday not found")
     return bday
@@ -70,10 +78,11 @@ def update_birthday_endpoint(
     session: Session = Depends(get_session),
     user=Depends(current_active_user),
 ):
-    bday = update_birthday(session, user.id, bday_id, payload)
+    lookup_id = user.id if not user.is_superuser else user.id
+    bday = update_birthday(session, lookup_id, bday_id, payload)
     if not bday:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Birthday not found")
-    invalidate_birthdays_cache(user.id)
+    invalidate_birthdays_cache(lookup_id)
     return bday
 
 @router.delete("/{bday_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -82,8 +91,8 @@ def delete_birthday_endpoint(
     session: Session = Depends(get_session),
     user=Depends(current_active_user),
 ):
-    success = delete_birthday(session, user.id, bday_id)
+    lookup_id = user.id if not user.is_superuser else user.id
+    success = delete_birthday(session, lookup_id, bday_id)
     if not success:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Birthday not found")
-    invalidate_birthdays_cache(user.id)
-    return
+    invalidate_birthdays_cache(lookup_id)

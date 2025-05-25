@@ -3,28 +3,20 @@
 import uuid
 from datetime import date
 from typing import Optional
-from pydantic import BaseModel, EmailStr
+from fastapi_users import schemas
 
-class UserRead(BaseModel):
-    id: uuid.UUID
-    email: EmailStr
+class UserRead(schemas.BaseUser[uuid.UUID]):
     date_of_birth: date
-    is_active: bool
-    is_superuser: bool
-    is_verified: bool
     workspace_id: Optional[uuid.UUID] = None
 
-class UserCreate(BaseModel):
-    email: EmailStr
-    password: str
-    date_of_birth: date              # ← now required
+    model_config = {
+        "from_attributes": True  # for Pydantic V2 -> allow reading from ORM
+    }
+
+class UserCreate(schemas.BaseUserCreate):
+    date_of_birth: date
     workspace_id: Optional[uuid.UUID] = None
 
-class UserUpdate(BaseModel):
-    email: Optional[EmailStr] = None
-    password: Optional[str] = None
-    date_of_birth: Optional[date] = None  # ← optional on update
-    is_active: Optional[bool] = None
-    is_superuser: Optional[bool] = None
-    is_verified: Optional[bool] = None
+class UserUpdate(schemas.BaseUserUpdate):
+    date_of_birth: Optional[date] = None
     workspace_id: Optional[uuid.UUID] = None

@@ -3,6 +3,8 @@
 import uuid
 from typing import List, Optional
 from sqlmodel import Session, select
+from sqlalchemy.exc import IntegrityError
+from fastapi import HTTPException, status
 
 from app.models.birthday_model import Birthday
 from app.schemas.birthday_schema import BirthdayCreate, BirthdayRead, BirthdayUpdate
@@ -14,12 +16,20 @@ def create_birthday(
 ) -> Birthday:
     """
     Create a new birthday record for the given user.
+    Enforces one birthday per user via DB unique constraint.
     """
     bday = Birthday(**payload.dict())
     bday.user_id = user_id
     session.add(bday)
-    session.commit()
-    session.refresh(bday)
+    try:
+        session.commit()
+        session.refresh(bday)
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User already has a birthday on file."
+        )
     return bday
 
 def list_birthdays(

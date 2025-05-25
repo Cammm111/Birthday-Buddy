@@ -41,6 +41,7 @@ def init_db() -> None:
             except IntegrityError:
                 session.rollback()
                 # if two processes race, ignore
+
 def get_session():
     """
     Dependency that yields a database session and closes it after use.
