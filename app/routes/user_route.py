@@ -4,10 +4,12 @@ from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from passlib.context import CryptContext
 from sqlmodel import Session, select
 
 from app.core.db import get_session
 from app.models.user_model import User
+from app.models.birthday_model import Birthday
 from app.schemas.user_schema import UserRead, UserUpdate
 from app.services.auth_service import current_active_user, current_superuser
 
@@ -16,7 +18,7 @@ router = APIRouter(
     tags=["users"],
 )
 
-# ─── General users / superusers ─────────────────────────────────────────────────
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 @router.get(
     "/",
@@ -50,7 +52,16 @@ def list_all_users(
     summary="Update a user  (Auth: self or superuser)",
     description=(
         "General users may only update their own account; superusers may update any user."
-    )
+    ),
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "example": {}
+                }
+            }
+        }
+    },
 )
 def patch_user(
     user_id: UUID,
@@ -66,16 +77,47 @@ def patch_user(
     if not user.is_superuser and user.id != user_id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Cannot modify other users")
 
-    update_data = payload.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(target, field, value)
+    data = payload.dict(exclude_unset=True)
+
+    # If they're changing password, hash it into `hashed_password`
+    if "password" in data:
+        raw_pw = data.pop("password")
+        target.hashed_password = pwd_context.hash(raw_pw)
+
+    # --- If they're changing date_of_birth, update Birthday table as well ---
+    if "date_of_birth" in data:
+        new_dob = data["date_of_birth"]
+
+        # Update User's date_of_birth field
+        target.date_of_birth = new_dob
+
+        # Update related Birthday table record
+        birthday_entry = session.exec(
+            select(Birthday).where(Birthday.user_id == user_id)
+        ).first()
+        if birthday_entry:
+            birthday_entry.date_of_birth = new_dob
+            # Optionally update the name if you want to keep in sync
+            if hasattr(target, "name") and target.name:
+                birthday_entry.name = target.name
+        else:
+            # Create a new Birthday entry if it doesn't exist
+            birthday_entry = Birthday(
+                user_id=user_id,
+                date_of_birth=new_dob,
+                name=getattr(target, "name", "Birthday")
+            )
+            session.add(birthday_entry)
+
+    # Now apply any other updatable fields (other than password and date_of_birth)
+    for field, value in data.items():
+        if field not in ("password", "date_of_birth"):
+            setattr(target, field, value)
 
     session.add(target)
     session.commit()
     session.refresh(target)
     return target
-
-# ─── Superuser only ─────────────────────────────────────────────────────────────
 
 @router.delete(
     "/{user_id}",

@@ -2,6 +2,7 @@
 
 import uuid
 from typing import AsyncGenerator
+
 from fastapi import Depends, HTTPException
 from fastapi_users import FastAPIUsers
 from fastapi_users.authentication import (
@@ -18,6 +19,8 @@ from app.core.config import settings
 from app.core.db import engine
 from app.models.user_model import User
 from app.models.workspace_model import Workspace
+from app.models.birthday_model import Birthday
+
 
 # ─── User DB Dependency ─────────────────────────────────────────────────────────
 
@@ -38,9 +41,11 @@ def get_user_db() -> PatchedUserDB:
     finally:
         session.close()
 
+
 # ─── Password Hasher ─────────────────────────────────────────────────────────────
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 
 # ─── User Manager ───────────────────────────────────────────────────────────────
 
@@ -50,8 +55,10 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
 
     async def create(self, user_create, safe: bool = False, request=None) -> User:
         """
-        Overrides FastAPI-Users create: first validate workspace_id (if any),
-        then hash password and persist.
+        Overrides FastAPI-Users create:
+          1) Validate workspace_id (if any)
+          2) Hash password and persist User
+          3) Create a Birthday tied to the new user
         """
         data = user_create.model_dump()
 
@@ -67,18 +74,30 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
 
         # 2) Hash their password and build our User model
         raw_password = data.pop("password")
-        hashed      = pwd_context.hash(raw_password)
-        user        = User(**data, hashed_password=hashed)
+        hashed       = pwd_context.hash(raw_password)
+        user         = User(**data, hashed_password=hashed)
 
-        # 3) Persist
+        # 3) Persist the User
         db: Session = self.user_db.session  # type: ignore[attr-defined]
         db.add(user)
         db.commit()
         db.refresh(user)
+
+        # 4) Create a Birthday record for the newly-registered user
+        birthday = Birthday(
+            user_id=user.id,
+            name=user.email,           # or use user.full_name if available
+            date_of_birth=user.date_of_birth
+        )
+        db.add(birthday)
+        db.commit()
+
         return user
+
 
 async def get_user_manager(user_db=Depends(get_user_db)):
     yield UserManager(user_db)
+
 
 # ─── Auth Backend & JWT ─────────────────────────────────────────────────────────
 
@@ -92,6 +111,7 @@ auth_backend = AuthenticationBackend(
     transport=bearer_transport,
     get_strategy=get_jwt_strategy,
 )
+
 
 # ─── FastAPI-Users Setup ────────────────────────────────────────────────────────
 
