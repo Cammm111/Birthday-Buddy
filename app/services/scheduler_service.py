@@ -10,10 +10,10 @@ from app.core.db import engine
 from app.models.birthday_model import Birthday
 from app.services.slack_service import post_birthday_message
 
+# keep a module-level handle so we can check running state
+_sched: BackgroundScheduler | None = None
+
 def birthday_job() -> None:
-    """
-    Query today’s birthdays and send a Slack message for each.
-    """
     today = datetime.utcnow().date()
     month, day = today.month, today.day
 
@@ -29,9 +29,16 @@ def birthday_job() -> None:
         post_birthday_message(f"🎂 Happy Birthday, *{b.name}*! :tada:")
 
 def start_scheduler() -> None:
-    """
-    Start the background scheduler to run `birthday_job` every day at 09:00 America/New_York.
-    """
-    sched = BackgroundScheduler(timezone="America/New_York")
-    sched.add_job(birthday_job, CronTrigger(hour=9, minute=0))
-    sched.start()
+    global _sched
+    # if it’s already running, do nothing
+    if _sched and _sched.running:
+        return
+
+    _sched = BackgroundScheduler(timezone="America/New_York")
+    _sched.add_job(
+        birthday_job,
+        CronTrigger(hour=9, minute=0),
+        id="daily-birthday-job",
+        replace_existing=True,
+    )
+    _sched.start()
