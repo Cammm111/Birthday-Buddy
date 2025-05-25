@@ -50,16 +50,15 @@ def list_all_birthdays(
     "/",
     response_model=BirthdayRead,
     status_code=status.HTTP_201_CREATED,
-    summary="Create a new birthday  (Auth: any active user)",
-    description="Adds a birthday under the authenticated user's workspace."
+    dependencies=[Depends(current_superuser)],
+    summary="Create a new birthday  (Auth: superuser only)",
+    description="Admins can create birthdays associated with any user or with no user."
 )
 def create_birthday(
     payload: BirthdayCreate,
     session: Session = Depends(get_session),
-    user=Depends(current_active_user),
 ):
     birthday = Birthday.from_orm(payload)
-    birthday.workspace_id = user.workspace_id
     session.add(birthday)
     session.commit()
     session.refresh(birthday)

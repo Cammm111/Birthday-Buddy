@@ -17,3 +17,4 @@ class Workspace(SQLModel, table=True):
 
     # a workspace can have many users
     users: List["User"] = Relationship(back_populates="workspace")
+    birthdays: List["Birthday"] = Relationship(back_populates="workspace")

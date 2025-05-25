@@ -51,7 +51,8 @@ def list_all_users(
     response_model=UserRead,
     summary="Update a user  (Auth: self or superuser)",
     description=(
-        "General users may only update their own account; superusers may update any user."
+        "General users may only update their own account; superusers may update any user. "
+        "Syncs all associated birthday fields from the updated user."
     ),
     openapi_extra={
         "requestBody": {
@@ -73,51 +74,50 @@ def patch_user(
     if not target:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
 
-    # only allow non-superusers to patch themselves
     if not user.is_superuser and user.id != user_id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Cannot modify other users")
 
     data = payload.dict(exclude_unset=True)
 
-    # If they're changing password, hash it into `hashed_password`
+    # Update password if provided
     if "password" in data:
         raw_pw = data.pop("password")
         target.hashed_password = pwd_context.hash(raw_pw)
 
-    # --- If they're changing date_of_birth, update Birthday table as well ---
-    if "date_of_birth" in data:
-        new_dob = data["date_of_birth"]
-
-        # Update User's date_of_birth field
-        target.date_of_birth = new_dob
-
-        # Update related Birthday table record
-        birthday_entry = session.exec(
-            select(Birthday).where(Birthday.user_id == user_id)
-        ).first()
-        if birthday_entry:
-            birthday_entry.date_of_birth = new_dob
-            # Optionally update the name if you want to keep in sync
-            if hasattr(target, "name") and target.name:
-                birthday_entry.name = target.name
-        else:
-            # Create a new Birthday entry if it doesn't exist
-            birthday_entry = Birthday(
-                user_id=user_id,
-                date_of_birth=new_dob,
-                name=getattr(target, "name", "Birthday")
-            )
-            session.add(birthday_entry)
-
-    # Now apply any other updatable fields (other than password and date_of_birth)
+    # Apply all updatable fields (except password)
     for field, value in data.items():
-        if field not in ("password", "date_of_birth"):
-            setattr(target, field, value)
+        setattr(target, field, value)
 
     session.add(target)
     session.commit()
     session.refresh(target)
+
+    # --- Sync ALL fields from User to Birthday for user-linked birthday ---
+    birthday_entry = session.exec(
+        select(Birthday).where(Birthday.user_id == user_id)
+    ).first()
+    if birthday_entry:
+        # Always sync these fields:
+        birthday_entry.name = target.email  # or target.name if you prefer
+        birthday_entry.date_of_birth = target.date_of_birth
+        birthday_entry.workspace_id = target.workspace_id
+        # Add any other mirrored fields here if needed!
+        session.add(birthday_entry)
+        session.commit()
+
+    # Optionally, if no birthday exists but DOB is present, create it:
+    elif target.date_of_birth:
+        birthday_entry = Birthday(
+            user_id=target.id,
+            name=target.email,  # or target.name if you add that
+            date_of_birth=target.date_of_birth,
+            workspace_id=target.workspace_id,
+        )
+        session.add(birthday_entry)
+        session.commit()
+
     return target
+
 
 @router.delete(
     "/{user_id}",

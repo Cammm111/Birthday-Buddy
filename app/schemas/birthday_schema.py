@@ -9,7 +9,7 @@ class BirthdayBase(BaseModel):
     name: str
     date_of_birth: date
     user_id: Optional[uuid.UUID] = None
-
+    workspace_id: Optional[uuid.UUID] = None
 class BirthdayCreate(BirthdayBase):
     pass
 
@@ -23,3 +23,4 @@ class BirthdayUpdate(BaseModel):
     """
     name: Optional[str] = None
     date_of_birth: Optional[date] = None
+    workspace_id: Optional[uuid.UUID] = None

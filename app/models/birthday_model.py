@@ -6,6 +6,7 @@ from typing import Optional, TYPE_CHECKING
 
 from sqlalchemy import UniqueConstraint
 from sqlmodel import SQLModel, Field, Relationship
+from app.models.workspace_model import Workspace
 
 if TYPE_CHECKING:
     from app.models.user_model import User
@@ -26,6 +27,8 @@ class Birthday(SQLModel, table=True):
     name: str
     date_of_birth: date
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    workspace_id: Optional[uuid.UUID] = Field(default=None, foreign_key="workspace.id")
 
     # back to the owning User (if any)
     user: Optional["User"] = Relationship(back_populates="birthdays")
+    workspace: Optional["Workspace"] = Relationship(back_populates="birthdays")
