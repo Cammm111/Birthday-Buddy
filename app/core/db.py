@@ -7,7 +7,7 @@ from app.core.config import settings
 from app.models.user_model import User
 
 # 1) Database engine & session factory
-engine = create_engine(settings.database_url, echo=True)
+engine = create_engine(settings.database_url, echo=False)
 SessionLocal = Session  # alias, same signature as Session(engine)
 
 # 2) Shared Redis client

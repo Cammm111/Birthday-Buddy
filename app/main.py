@@ -1,10 +1,10 @@
 # app/main.py
 
+from app.core.logging_config import setup_logging
+setup_logging() # Configure logging first
 from dotenv import load_dotenv
 load_dotenv()
-
 from fastapi import FastAPI
-from app.core.logging_config import setup_logging
 from app.core.db import init_db
 from app.services.scheduler_service import start_scheduler
 from app.services.auth_service import fastapi_users, auth_backend
@@ -14,21 +14,18 @@ from app.routes.workspace_route import router as workspace_router
 from app.routes.utils_route import router as utils_router
 from app.schemas.user_schema import UserRead, UserCreate
 
-# 1) Configure logging
-setup_logging()
-
-# 2) Initialize database & seed admin user
+# ──────────────────────────────────Initialize database & seed admin user──────────────────────────────────
 init_db()
 
-# 3) Create the FastAPI app
+# ──────────────────────────────────Create the FastAPI app──────────────────────────────────
 app = FastAPI(title="Birthday Buddy")
 
-# 4) Start the scheduler on application startup
+# ──────────────────────────────────Start the scheduler on application startup──────────────────────────────────
 @app.on_event("startup")
 def on_startup():
     start_scheduler()
 
-# 5) AUTHENTICATION ROUTES
+# ──────────────────────────────────AUTHENTICATION ROUTES──────────────────────────────────
 
 # JWT login/logout
 app.include_router(
@@ -51,8 +48,7 @@ app.include_router(
     tags=["auth"],
 )
 
-# 6) Your application routers
-
+# ──────────────────────────────────Custom Routers──────────────────────────────────
 app.include_router(user_router)
 app.include_router(birthday_router)
 app.include_router(workspace_router)

@@ -13,22 +13,15 @@ if TYPE_CHECKING:
 
 class Birthday(SQLModel, table=True):
     __tablename__ = "birthday"
-    __table_args__ = (
-        UniqueConstraint("user_id", name="uq_birthday_user"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", name="uq_birthday_user"),)
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    user_id: Optional[uuid.UUID] = Field(
-        default=None,
-        foreign_key="user.id",
-        nullable=True,
-        unique=True,  # enforce one birthday per user if set
-    )
-    name: str
-    date_of_birth: date
+    user_id: Optional[uuid.UUID] = Field(default=None, foreign_key="user.user_id", unique=True)
+    name: str = Field(nullable=False)
+    date_of_birth: date = Field(nullable=False)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     workspace_id: Optional[uuid.UUID] = Field(default=None, foreign_key="workspace.id")
 
     # back to the owning User (if any)
-    user: Optional["User"] = Relationship(back_populates="birthdays")
+    user: Optional["User"] = Relationship(back_populates="birthday")
     workspace: Optional["Workspace"] = Relationship(back_populates="birthdays")

@@ -1,16 +1,24 @@
 # app/services/slack_service.py
-import os
+
+import logging
 from slack_sdk.webhook import WebhookClient
-from app.core.config import settings
 
-WEBHOOK_URL = settings.slack_webhook_url
-print("DEBUG - SLACK_WEBHOOK_URL =", WEBHOOK_URL)
+logger = logging.getLogger(__name__)
 
-def post_birthday_message(text: str):
-    if not WEBHOOK_URL:
-        raise RuntimeError("SLACK_WEBHOOK_URL not set in environment/.env")
+def post_birthday_message(text: str, webhook_url: str):
+    """
+    Post a Slack message to the specified webhook URL.
+    """
+    if not webhook_url:
+        logger.warning("⚠️ Slack webhook URL missing — skipping message.")
+        return
 
-    # Ensure WEBHOOK_URL is a string for the Slack SDK
-    resp = WebhookClient(str(WEBHOOK_URL)).send(text=text)
-    if resp.status_code != 200:
-        raise RuntimeError(f"Slack error {resp.status_code}: {resp.body}")
+    try:
+        resp = WebhookClient(webhook_url).send(text=text)
+
+        if resp.status_code == 200:
+            logger.info("✅ Birthday message posted to Slack successfully.")
+        else:
+            logger.error(f"❌ Slack error {resp.status_code}: {resp.body}")
+    except Exception as e:
+        logger.exception(f"❌ Exception while posting to Slack: {e}")

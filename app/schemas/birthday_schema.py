@@ -16,7 +16,8 @@ class BirthdayCreate(BirthdayBase):
 class BirthdayRead(BirthdayBase):
     id: uuid.UUID
     created_at: datetime
-
+    class Config:
+        from_attributes = True
 class BirthdayUpdate(BaseModel):
     """
     All fields optional; only the provided ones will be updated.
