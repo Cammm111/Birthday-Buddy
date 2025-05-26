@@ -15,16 +15,16 @@ class Settings(BaseSettings):
 
     admin_email: EmailStr    = Field(..., env="ADMIN_EMAIL")
     admin_password: str      = Field(..., env="ADMIN_PASSWORD")
-    admin_dob: date          = Field(..., env="ADMIN_DOB")  # make sure ADMIN_DOB is in .env
+    admin_dob: date          = Field(..., env="ADMIN_DOB")  
 
     redis_url: str           = Field(..., env="REDIS_URL")
     database_url: str        = Field(..., env="DATABASE_URL")
 
     # pydantic-settings config
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file="config/.env",
         env_file_encoding="utf-8",
-        extra="ignore",    # or "forbid" if you want to catch typos
+        extra="ignore",    
     )
 
     @property
