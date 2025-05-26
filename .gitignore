@@ -13,10 +13,17 @@ ENV/
 env/
 .Python
 
+
 # Environment variables and secret keys
 .env
 !.env.template
 .env.*
+/config/.env
+
+# DB backups
+*.sql
+backups/
+dbbackups/
 
 # Local databases
 *.db
@@ -24,6 +31,7 @@ database.db
 
 # Logs
 *.log
+logs/
 
 # IDE settings
 .vscode/
@@ -32,6 +40,10 @@ database.db
 # OS files
 .DS_Store
 Thumbs.db
+
+# Local Project structure
+structure.txt
+app/structure.txt
 
 # Test and coverage outputs
 htmlcov/
@@ -54,3 +66,9 @@ coverage.xml
 *.swp
 CLI Commands.txt
 requirements.lock.txt
+
+# preserve empty logs and dbbackups dirs
+logs/*
+!logs/.gitkeep
+dbbackups/*
+!dbbackups/.gitkeep

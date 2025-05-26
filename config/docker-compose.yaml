@@ -1,0 +1,38 @@
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: config/Dockerfile
+    container_name: birthdaybuddy_app
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./config/.env
+    volumes:
+      - ../:/app  # One level up from /config to mount the full project
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  postgres:
+    image: postgres:15
+    container_name: birthdaybuddy_postgres
+    environment:
+      POSTGRES_USER: buddy
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: BirthdayBuddydb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
+    container_name: birthdaybuddy_redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:
