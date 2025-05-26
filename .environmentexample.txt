@@ -1,4 +1,0 @@
-JWT_SECRET=<secretpass>
-SLACK_WEBHOOK_URL=<SlackURL>
-ADMIN_EMAIL=admin@BirthdayBuddy.com
-ADMIN_PASSWORD=password
