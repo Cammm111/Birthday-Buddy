@@ -180,4 +180,5 @@ tests/                      # Exists. Runs. Mostly passes...
 - Logging                   # Timestamps and logs all service activity to /logs/, with a new .log file created 
                               per app restart
 ## License
-Birthday Buddy Studios © 2025 Cameron Manchester
+Birthday Buddy Studios © 2025 Cameron Manchester 
+ 
