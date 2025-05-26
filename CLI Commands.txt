@@ -1,4 +1,0 @@
-docker ps -a
-docker start birthday-buddy-db
-docker exec -it birthday-buddy-db bash
-psql -U buddy -d birthdaydb
