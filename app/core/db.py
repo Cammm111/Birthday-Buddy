@@ -6,26 +6,24 @@ from redis import Redis
 from app.core.config import settings
 from app.models.user_model import User
 
-# 1) Database engine & session factory
+# ──────────────────────────────────Create SQLModel Engine──────────────────────────────────
 engine = create_engine(settings.database_url, echo=False)
-SessionLocal = Session  # alias, same signature as Session(engine)
+SessionLocal = Session # aliases the local session
 
-# 2) Shared Redis client
+# ──────────────────────────────────Create Redis client──────────────────────────────────
 redis = Redis.from_url(settings.redis_url, decode_responses=True)
 
-
+# ──────────────────────────────────Initialize database & seed admin──────────────────────────────────
 def init_db() -> None:
     """
     Create all tables and ensure the default admin user exists.
     """
     SQLModel.metadata.create_all(engine)
 
-    with SessionLocal(engine) as session:
-        # look for an existing superuser
+    with SessionLocal(engine) as session: # look for an existing superuser
         existing = session.exec(
             select(User).where(User.is_superuser == True)
-        ).first()
-
+        ).first()                                     
         if not existing:
             admin = User(
                 email=settings.admin_email,
@@ -38,17 +36,13 @@ def init_db() -> None:
             session.add(admin)
             try:
                 session.commit()
-            except IntegrityError:
+            except IntegrityError: # if two processes race eat it up so only 1 admin exists
                 session.rollback()
-                # if two processes race, ignore
-
+                
+# ──────────────────────────────────Give local session info──────────────────────────────────
 def get_session():
     """
     Dependency that yields a database session and closes it after use.
-    Usage in your routes:
-        @router.get(..., dependencies=[Depends(get_session)])
-        def read_stuff(db: Session = Depends(get_session)):
-            …
     """
     with SessionLocal(engine) as session:
         yield session

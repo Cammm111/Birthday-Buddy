@@ -11,7 +11,7 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - ./config/.env
+      - ./.env
     volumes:
       - ../:/app  # One level up from /config to mount the full project
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -22,7 +22,7 @@ services:
     environment:
       POSTGRES_USER: buddy
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: BirthdayBuddydb
+      POSTGRES_DB: birthdaydb
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:

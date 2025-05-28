@@ -43,7 +43,10 @@ def create_birthday(session: Session, user_id: uuid.UUID, payload: BirthdayCreat
         session.refresh(bday)
     except IntegrityError:
         session.rollback()
-        raise HTTPException(...)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not create birthday (user may already have one or user/workspace does not exist)"
+        )
 
     invalidate_birthdays_cache(user_id)
     return bday
@@ -83,13 +86,14 @@ def update_birthday(session: Session, user_id: uuid.UUID, bday_id: uuid.UUID, pa
     return bday
 
 
-def delete_birthday(session: Session, user_id: uuid.UUID, bday_id: uuid.UUID) -> bool:
+def delete_birthday(session: Session,user: User, bday_id: uuid.UUID) -> bool:
     bday = session.get(Birthday, bday_id)
-    if not bday or bday.user_id != user_id:
+    if not bday:
+        return False
+    if not user.is_superuser and bday.user_id != user.user_id: # if not an admin, only allow deleting your own record
         return False
 
     session.delete(bday)
     session.commit()
-
-    invalidate_birthdays_cache(user_id)
+    invalidate_birthdays_cache(user.user_id)
     return True

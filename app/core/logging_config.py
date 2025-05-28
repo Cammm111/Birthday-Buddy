@@ -5,7 +5,8 @@ from logging.config import dictConfig
 import os
 from datetime import datetime
 
-def setup_logging() -> None:
+# ──────────────────────────────────Logging setup──────────────────────────────────
+def setup_logging() -> None: # Make log directory if not already created
     log_dir = "logs"
     os.makedirs(log_dir, exist_ok=True)
 

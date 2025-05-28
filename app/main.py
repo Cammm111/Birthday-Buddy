@@ -1,7 +1,7 @@
 # app/main.py
 
 from app.core.logging_config import setup_logging
-setup_logging() # Configure logging first
+setup_logging() # Configure logging first! Had issues with this one...
 from dotenv import load_dotenv
 load_dotenv()
 from fastapi import FastAPI

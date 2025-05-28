@@ -1,3 +1,5 @@
+# app/services/user_service.py
+
 from typing import Optional, List
 from uuid import UUID
 from sqlmodel import Session, select
@@ -8,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from app.models.user_model import User
 from app.models.birthday_model import Birthday
 from app.schemas.user_schema import UserCreate, UserUpdate
+from app.services.redis_cache_service import invalidate_birthdays_cache
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -43,44 +46,64 @@ def list_users(session: Session) -> List[User]:
 def get_user(session: Session, user_id: UUID) -> Optional[User]:
     return session.get(User, user_id)
 
-def update_user(session: Session, user_id: UUID, payload: UserUpdate) -> Optional[User]:
-    user = session.get(User, user_id)
-    if not user:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+def update_user(
+    session: Session,
+    current_user: User,
+    target_user_id: UUID,
+    payload: UserUpdate
+) -> Optional[User]:
+    # Fetch the target user record
+    user_obj = session.get(User, target_user_id)
+    if not user_obj:
+        return None
 
+    # Permission check: either the user themself or a superuser
+    if not current_user.is_superuser and current_user.user_id != target_user_id:
+        return None
+
+    # Determine which fields have changed for birthday sync
     update_data = payload.dict(exclude_unset=True)
+    birthday_fields_updated = any(
+        f in update_data for f in ("email", "name", "date_of_birth", "workspace_id")
+    )
 
+    # Handle password hashing if password is being updated
     if "password" in update_data:
         update_data["hashed_password"] = pwd_context.hash(update_data.pop("password"))
 
-    birthday_fields_updated = any(field in update_data for field in ["email", "name", "date_of_birth", "workspace_id"])
+    # Apply all updates to the user object
+    for field, val in update_data.items():
+        setattr(user_obj, field, val)
 
-    for field, value in update_data.items():
-        setattr(user, field, value)
-
-    session.add(user)
+    session.add(user_obj)
     session.commit()
-    session.refresh(user)
+    session.refresh(user_obj)
 
+    # Sync or create the corresponding Birthday record if relevant fields changed
     if birthday_fields_updated:
-        birthday = session.exec(select(Birthday).where(Birthday.user_id == user_id)).first()
-        if birthday:
-            birthday.name = user.email
-            birthday.date_of_birth = user.date_of_birth
-            birthday.workspace_id = user.workspace_id
-            session.add(birthday)
+        bday = session.exec(
+            select(Birthday).where(Birthday.user_id == target_user_id)
+        ).first()
+        if bday:
+            bday.name = user_obj.email
+            bday.date_of_birth = user_obj.date_of_birth
+            bday.workspace_id = user_obj.workspace_id
+            session.add(bday)
             session.commit()
-        elif user.date_of_birth:
-            birthday = Birthday(
-                user_id=user.user_id,
-                name=user.email,
-                date_of_birth=user.date_of_birth,
-                workspace_id=user.workspace_id
+        else:
+            bday = Birthday(
+                user_id=target_user_id,
+                name=user_obj.email,
+                date_of_birth=user_obj.date_of_birth,
+                workspace_id=user_obj.workspace_id
             )
-            session.add(birthday)
+            session.add(bday)
             session.commit()
 
-    return user
+        # Invalidate Redis cache for this user's birthdays
+        invalidate_birthdays_cache(target_user_id)
+
+    return user_obj
 
 def delete_user(session: Session, user_id: UUID) -> bool:
     user = session.get(User, user_id)
