@@ -132,27 +132,51 @@ app/routes/                 # FastAPI routes that are organized by domain/featur
   - /users_route            # Defines the /users router with endpoints for user management. Authenticated users can list members 
                               of their own workspace and update only their own profile. Admins can list all users and delete any account. All data access/mutations delegate to the user_service and each endpoint is annotated with OpenAPI metadata.
 
-  - /utils_route            # Because sometimes Admins just want an EASY button
+  - /utils_route            # Because sometimes Admins just want an EASY button...
 
-  - /workspace_route        # Manages workspaces (these group users and controls Slack webhook targets)
+  - /workspace_route        # Defines the /workspaces router and its CRUD endpoints. Anyone may list all workspaces, while only Admins can create, 
+                              patch, or delete a workspace. All data access/mutations delegate to the workspace_service.
 ---------------------------------------------------------------------------------------------------------------------------------
-app/schemas/                # Where those API dreams meet data validation reality...Pydantic-compatible 
-                              schemas for request and response validation of payloads. Separate from
-                              the SQLModel in models/ to control API surface w/o touching the database
-  - birthday_schema.py      # Birthday schema
-  - user_schema.py          # User schema
-  - workspace_schema.py     # Workspace schema
+app/schemas/                # Where those API dreams meet data validation reality... Separate from the SQLModel in models/ to control API surface 
+                              w/o touching the database
+
+  - birthday_schema.py      # Pydantic schemas for Birthdays. Supplies four schemas — BirthdayCreate, BirthdayRead, BirthdayUpdate, and the shared 
+                              BirthdayBase.
+
+  - user_schema.py          # Extends FastAPI-Users’ base models with custom fields (date_of_birth, workspace_id). Provides three Pydantic 
+                              schemas—UserRead, UserCreate, and UserUpdate.
+
+  - workspace_schema.py     # Defines the Workspace schemas used throughout the API. WorkspaceBase holds shared fields, while WorkspaceCreate, 
+                              WorkspaceRead, and WorkspaceUpdate support create-payloads, read-responses, and partial updates. A regex on slack_webhook enforces that only valid Slack incoming-webhook URLs are accepted.
+
+  - utils_schema.py         # Pydantic schemas for the /utils endpoints. Defines TimezoneList, JobResult, CountResult , CacheResult, and 
+                              CacheAllUsers
 ---------------------------------------------------------------------------------------------------------------------------------
 app/services/               # Where the actual business logic lives (not just a buzzword, I promise)
-  - auth_service.py         # Handles FastAPI users config and JWT auth
-  - birthday_service.py     # CRUD and syncing logic for birthday records
-  - redis_cache_service.py  # Caching utility functions
-  - scheduler_service.py    # Chronjob for posting Slack birthday messages
-  - slack_service.py        # Birthday Buddy's entire personality
-  - user_service.py         # Manages user updates
-  - workspace_service.py    # Manages workspace updates
+
+  - auth_service.py         # Handles user authentication and authorization by integrating FastAPI-Users with SQLModel and JWT. It provides a 
+                              database dependency for user records, bcrypt-based password hashing, a custom user manager that validates workspaces and auto-creates birthdays, and a JWT auth backend
+
+  - birthday_service.py     # Centralizes all birthday-related logic. CRUD operations (with cache invalidation and integrity checks), and a helper 
+                              to sync birthday records with user profiles. Logs key events and ensures data consistency across database and cache.
+
+  - redis_cache_service.py  # Implements Redis-backed caching for birthday lists, offering functions to get, set, and invalidate per-user caches 
+                              with a 5-minute Time to Live. It also includes utilities to list, inspect, and clear all Redis keys under a given user’s namespace, as well as a global method to audit every user’s cached entries.
+
+  - scheduler_service.py    # Configures an APScheduler background job that runs every day at 9 AM ET, queries today’s birthdays from the database, 
+                              and sends Slack messages. It exposes start_scheduler() and stop_scheduler() functions to begin or halt the scheduler cleanly.
+
+  - slack_service.py        # Provides a reusable function that sends messages to a Slack incoming webhook, locally caching WebhookClient instances 
+                              and retrying on transient errors. It returns a boolean success flag and logs all outcomes, including rate‐limits.
+
+  - user_service.py         # Provides CRUD operations for Users - including password hashing, data validation, and permission checks—and ensures 
+                              any changes to user profile fields are reflected in the Birthday table.
+
+  - workspace_service.py    # Implements the business logic for managing workspaces. Ensures only superusers can create, update, or delete 
+                              workspaces, providing functions to list all workspaces, create a new workspace from incoming data (with integrity checks), apply updates to existing workspaces, and safely delete a workspace while nullifying any linked birthday records.
+
 ---------------------------------------------------------------------------------------------------------------------------------
-app/tests/                      # Exists. Runs. Mostly passes... [**IN DEVELOPMENT**]
+app/tests/                  # Exists. Runs. Mostly passes... [**IN DEVELOPMENT**]
   - birthday_test.py        # Tests birthday CRUD operations
   - user_test.py            # Tests user CRUD operations
 

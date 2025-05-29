@@ -3,7 +3,7 @@
 from typing import List
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session, select
+from sqlmodel import Session
 from app.core.db import get_session
 from app.models.birthday_model import Birthday
 from app.schemas.birthday_schema import BirthdayRead, BirthdayCreate, BirthdayUpdate
@@ -14,17 +14,22 @@ from app.services import birthday_service
 router = APIRouter(prefix="/birthdays", tags=["Birthdays"],) # Router prefix "/birthdays". Group these bad boys under "birthdays" in the OpenAPI docs
 
 # ──────────────────────────────────GET /birthdays──────────────────────────────────
+# GET /birthdays
 @router.get("/",
-    response_model=List[BirthdayRead], # Response models defined in birthday_schema.py
+    response_model=List[BirthdayRead],
     summary="List birthdays in your workspace (Auth: Any active user)",
     description="Returns all birthdays belonging to the authenticated user's workspace."
 )
-def list_birthdays(
+def list_birthdays_by_workspace(
     session: Session = Depends(get_session),
     user=Depends(current_active_user),
 ):
-    stmt = select(Birthday).where(Birthday.workspace_id == user.workspace_id) # Only return birthdays belonging to the current user’s workspace
-    return session.exec(stmt).all()
+    # Delegate to service (which handles user-scoped caching)
+    return birthday_service.list_birthdays_by_workspace(
+        session,
+        workspace_id=user.workspace_id,
+        user_id=user.user_id,
+    )
 
 # ──────────────────────────────────GET /birthdays/all──────────────────────────────────
 @router.get("/all",
@@ -36,8 +41,7 @@ def list_birthdays(
 def list_all_birthdays(
     session: Session = Depends(get_session),
 ):
-    stmt = select(Birthday)
-    return session.exec(stmt).all()
+    return birthday_service.list_all_birthdays(session)
 
 # ──────────────────────────────────POST /birthdays──────────────────────────────────
 @router.post("/",

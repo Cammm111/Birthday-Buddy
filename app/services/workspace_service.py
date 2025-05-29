@@ -1,71 +1,104 @@
 # app/services/workspace_service.py
 
-from typing import List, Optional
+from __future__ import annotations
+import logging
+from typing import List
 from uuid import UUID
-from sqlmodel import Session, select
-
+from fastapi import HTTPException, status
+from sqlmodel import Session, select, update
+from sqlalchemy.exc import IntegrityError
+from app.models.birthday_model import Birthday
+from app.models.user_model import User
 from app.models.workspace_model import Workspace
 from app.schemas.workspace_schema import WorkspaceCreate, WorkspaceUpdate
+logger = logging.getLogger(__name__)
 
-def list_workspaces(session: Session) -> List[Workspace]:
-    """
-    Return all workspaces.
-    """
-    stmt = select(Workspace)
-    return session.exec(stmt).all()
+# ───────────────────────────List workspaces────────────────────────────
+def list_workspaces(session: Session) -> List[Workspace]: # Return every workspace
+    return session.exec(select(Workspace)).all()
 
-def get_workspace(
-    session: Session,
-    workspace_id: UUID
-) -> Optional[Workspace]:
-    """
-    Retrieve a single workspace by its ID.
-    """
-    return session.get(Workspace, workspace_id)
-
-def create_workspace(
-    session: Session,
-    payload: WorkspaceCreate
-) -> Workspace:
-    """
-    Create a new workspace.
-    """
+# ─────────────────────────────Create workspace─────────────────────────────
+def create_workspace(session: Session, # Insert and return a new workspace
+                     payload: WorkspaceCreate,
+                     current_user: User) -> Workspace:
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can create workspaces",)
+    
     ws = Workspace.from_orm(payload)
     session.add(ws)
-    session.commit()
-    session.refresh(ws)
-    return ws
+    try:
+        session.commit()
+        session.refresh(ws)
+        logger.info("Workspace %s created", ws.id)
+        return ws
+    except IntegrityError:
+        session.rollback()
+        logger.exception("Integrity error creating workspace")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not create workspace (invalid data or conflict)",)
 
-def update_workspace(
-    session: Session,
-    workspace_id: UUID,
-    payload: WorkspaceUpdate
-) -> Optional[Workspace]:
-    """
-    Update fields of an existing workspace.
-    """
+# ─────────────────────────────Update workspace─────────────────────────────
+def update_workspace(session: Session, # Apply updates
+                     workspace_id: UUID,
+                     payload: WorkspaceUpdate,
+                     current_user: User) -> Workspace:
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can update workspaces",)
+    
     ws = session.get(Workspace, workspace_id)
     if not ws:
-        return None
-    update_data = payload.dict(exclude_unset=True)
-    for field, value in update_data.items():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workspace with id={workspace_id} not found")
+
+    for field, value in payload.dict(exclude_unset=True).items():
         setattr(ws, field, value)
-    session.add(ws)
-    session.commit()
-    session.refresh(ws)
-    return ws
 
-def delete_workspace(
-    session: Session,
-    workspace_id: UUID
-) -> bool:
-    """
-    Delete a workspace by ID.
-    Returns True if deleted, False otherwise.
-    """
+    try:
+        session.commit()
+        session.refresh(ws)
+        logger.info("Workspace %s updated", ws.id)
+        return ws
+    except IntegrityError:
+        session.rollback()
+        logger.exception("Integrity error updating workspace %s", workspace_id)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not update workspace (invalid data or conflict)",)
+    
+# ─────────────────────────────Delete workspace─────────────────────────────
+def delete_workspace(session: Session, # Delete a workspace, null out workspace_id in Birthday table
+    workspace_id: UUID,
+    current_user: User,) -> None:
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can delete workspaces",)
+
     ws = session.get(Workspace, workspace_id)
     if not ws:
-        return False
-    session.delete(ws)
-    session.commit()
-    return True
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workspace with id={workspace_id} not found")
+
+    
+    try: # Null out workspace_id in Birthday table
+        session.exec(
+        update(Birthday)
+        .where(Birthday.workspace_id == workspace_id)
+        .values(workspace_id=None)
+        )
+        session.delete(ws)
+        session.commit()
+        logger.info("Workspace %s deleted; orphaned birthdays updated", workspace_id)
+    except IntegrityError:
+        session.rollback()
+        logger.exception("Integrity error deleting workspace %s", workspace_id)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not delete workspace (integrity error)",)
