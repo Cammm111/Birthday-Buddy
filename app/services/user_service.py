@@ -7,17 +7,18 @@ from sqlmodel import Session, select
 from passlib.context import CryptContext
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
+from redis.exceptions import RedisError
 from app.models.user_model import User
 from app.models.birthday_model import Birthday
 from app.schemas.user_schema import UserCreate, UserUpdate
-from app.services.redis_cache_service import invalidate_birthdays_cache
+from app.services.redis_cache_service import ( get_cached_users_all, set_cached_users_all, invalidate_users_cache_all,)
 logger = logging.getLogger(__name__)
 
 # ─────────────────────────────Password hasher─────────────────────────────
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# ───────────────────────────── Birthday Sync Helper ─────────────────────────────
-def _sync_user_birthday(session: Session, # Ensure there's a birthday record matching this User. Creates/updates the record and invalidates the cache.
+# ─────────────────────────────Birthday Sync Helper─────────────────────────────
+def _sync_user_birthday(session: Session, # Ensure there's a birthday record matching this User. Creates/updates the record
                         user_obj: User) -> None: 
     b = session.exec(
         select(Birthday).where(Birthday.user_id == user_obj.user_id)
@@ -36,10 +37,38 @@ def _sync_user_birthday(session: Session, # Ensure there's a birthday record mat
         session.add(b)
     try:
         session.commit()
-        invalidate_birthdays_cache(user_obj.user_id)
     except Exception:
         session.rollback()
         logger.exception("Failed to sync birthday for user %s", user_obj.user_id)
+
+# ─────────────────────────────Return all users─────────────────────────────
+def list_users(session: Session) -> List[User]: # Return every user in the system
+    try:
+        cached = get_cached_users_all() # Try cache
+    except RedisError as e:
+        logger.warning("Redis GET error in list_users, skipping cache: %s", e)
+        cached = None
+
+    if cached is not None:
+        logger.debug("list_users: cache hit")
+        return [User.parse_obj(d) for d in cached]
+
+    users = session.exec(select(User)).all()  # Hit the database if no cache
+
+    try:
+        set_cached_users_all(users) # Populate cache
+    except RedisError as e:
+        logger.warning("Redis SET error in list_users: %s", e)
+
+    return users
+
+# ─────────────────────────────Get user by id─────────────────────────────
+def get_user(session: Session, # Fetch single user by ID directly from the database
+             user_id: UUID) -> User:
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+    return user
 
 # ─────────────────────────────Create user─────────────────────────────
 def create_user(session: Session,
@@ -59,26 +88,23 @@ def create_user(session: Session,
     try:
         session.commit()
         session.refresh(user)
+        logger.info("Created user %s", user.user_id)
+        try:
+            invalidate_users_cache_all()  # Invalidate cache so next list_users() is fresh
+        except RedisError as e:
+            logger.warning("Redis DELETE error invalidating users cache: %s", e)
+        return user
     except IntegrityError:
         session.rollback()
+        logger.exception("Integrity error creating user")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Could not create user (email may exist or workspace invalid)",
-        )
-    return user
+            detail="Could not create user (email may exist or workspace invalid)",)
 
-# ─────────────────────────────Return all users─────────────────────────────
-def list_users(session: Session) -> List[User]: # Return every user in the system
-    return session.exec(select(User)).all()
 
-# ─────────────────────────────Get user by id─────────────────────────────
-def get_user(session: Session,
-             user_id: UUID) -> Optional[User]: # Fetch a user by ID
-    return session.get(User, user_id)
 
 # ─────────────────────────────Update user─────────────────────────────
-def update_user( # Update a user’s own record (or any record if Admin). Also syncs Birthday whenever email, name, DOB or workspace changes
-    session: Session,
+def update_user(session: Session,
     current_user: User,
     target_user_id: UUID,
     payload: UserUpdate) -> Optional[User]:
@@ -93,8 +119,7 @@ def update_user( # Update a user’s own record (or any record if Admin). Also s
     if "password" in data: 
         data["hashed_password"] = pwd_context.hash(data.pop("password")) # Hash new password if provided
 
-    birthday_fields = {"email", "name", "date_of_birth", "workspace_id"} # Detect any Birthday fields changed
-    needs_bday_sync = any(f in data for f in birthday_fields)
+    needs_bday_sync = any(f in data for f in ("email", "name", "date_of_birth", "workspace_id"))
 
     for field, val in data.items(): 
         setattr(user_obj, field, val)  # Apply updates to user
@@ -103,27 +128,41 @@ def update_user( # Update a user’s own record (or any record if Admin). Also s
         session.add(user_obj)
         session.commit()
         session.refresh(user_obj)
+        logger.info("Updated user %s", target_user_id)
+
+        try:
+            invalidate_users_cache_all() # Invalidate the all-users cache
+        except RedisError as e:
+            logger.warning("Redis DELETE error invalidating users cache: %s", e)
+
     except IntegrityError:
         session.rollback()
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            detail="Could not update user (invalid data or email conflict)",
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Could not update user (invalid data or email conflict)",)
+
     if needs_bday_sync:
-        _sync_user_birthday(session, user_obj) # Sync the Birthday table
+        _sync_user_birthday(session, user_obj)
+
     return user_obj
 
 # ─────────────────────────────Delete user─────────────────────────────
-def delete_user(session: Session, # Delete a user by ID
+def delete_user(session: Session, # Delete a user
                 user_id: UUID) -> bool:
     user = session.get(User, user_id)
     if not user:
         return False
+
     session.delete(user)
     try:
         session.commit()
-        invalidate_birthdays_cache(user_id)
+        logger.info("Deleted user %s", user_id)
+
+        try:
+            invalidate_users_cache_all() # Invalidate the all-users cache
+        except RedisError as e:
+            logger.warning("Redis DELETE error invalidating users cache: %s", e)
+
         return True
+
     except IntegrityError:
         session.rollback()
         logger.exception("Integrity error deleting user %s", user_id)

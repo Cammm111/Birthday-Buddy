@@ -1,106 +1,113 @@
 # app/services/redis_cache_service.py
 
+from __future__ import annotations
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 from uuid import UUID
+from redis import Redis, RedisError
 from app.core.db import redis
-
 logger = logging.getLogger(__name__)
 
 CACHE_TTL = 300  # Cache time - 5 minutes
-PREFIX_TEMPLATE = "user:{uid}:"
+###──────────────────────────────────────────────────────────Key Templates──────────────────────────────────────────────────────────###
+_BIRTHDAYS_ALL = "birthdays:all"
+_BIRTHDAYS_BY_WS = lambda ws_id: f"birthdays:ws:{ws_id}"
+_USERS_ALL = "users:all"
+_WORKSPACES_ALL = "workspaces:all"
 
-# ─────────────────────────────Cached keys helper─────────────────────────────
-def _cache_key(user_id: UUID) -> str:
-    return f"birthdays:{user_id}"
+###──────────────────────────────────────────────────────────Helper Functions for caching──────────────────────────────────────────────────────────###
+#─────────────────────────────_serialize helper─────────────────────────────
+def _serialise(items: Sequence[Any]) -> str: # Return a JSON string, converting SQLModel/Pydantic objects to dict
+    def to_dict(x: Any) -> Any:
+        return x.dict() if hasattr(x, "dict") else x
+    return json.dumps([to_dict(i) for i in items], default=str)
 
-# ─────────────────────────────User prefix helper─────────────────────────────
-def _user_prefix(user_id: UUID) -> str: # Return key prefix used for all of this user’s cache entries
-    return PREFIX_TEMPLATE.format(uid=user_id)
+#─────────────────────────────_deserialize helper─────────────────────────────
+def _deserialise(raw: Optional[str]) -> Optional[List[Dict[str, Any]]]: # String to list
+    return json.loads(raw) if raw else None
 
-# ─────────────────────────────Get cached birthdays─────────────────────────────
-def get_cached_birthdays(user_id: UUID) -> Optional[List[Dict[str, Any]]]:
-    key = _cache_key(user_id)
-    raw = redis.get(key)
+#─────────────────────────────_safe_get helper─────────────────────────────
+def _safe_get(key: str) -> Optional[str]: # Catch on error to log a failed GET
+    try:
+        return redis.get(key)
+    except RedisError as e:
+        logger.warning("Redis GET %s failed: %s", key, e)
+        return None
 
-    if raw:
-        logger.debug(f"Cache hit for user {user_id}")
-        return json.loads(raw)
+#─────────────────────────────_safe_set helper─────────────────────────────
+def _safe_set(key: str, payload: str, ttl: int = CACHE_TTL) -> None: # Catch on error to log a failed SET
+    try:
+        redis.set(key, payload, ex=ttl)
+    except RedisError as e:
+        logger.warning("Redis SET %s failed: %s", key, e)
 
-    logger.debug(f"Cache miss for user {user_id}")
-    return None
+#─────────────────────────────_safe_del helper─────────────────────────────
+def _safe_del(key: str) -> None: # Catch on error to log a failed DELETE
+    try:
+        redis.delete(key)
+    except RedisError as e:
+        logger.warning("Redis DEL %s failed: %s", key, e)
+ 
+###──────────────────────────────────────────────────────────Birthdays (all)──────────────────────────────────────────────────────────###
+#─────────────────────────────GET cached birthdays (all)─────────────────────────────
+def get_cached_birthdays_all() -> Optional[List[Dict[str, Any]]]:
+    return _deserialise(_safe_get(_BIRTHDAYS_ALL))
 
-# ─────────────────────────────Set Cached birthdays─────────────────────────────
-def set_cached_birthdays(user_id: UUID,
-                         items: List[Any]):
-    key = _cache_key(user_id)
+#  ─────────────────────────────SET cached birthdays (all)─────────────────────────────
+def set_cached_birthdays_all(items: Sequence[Any], ttl: int = CACHE_TTL) -> None:
+    _safe_set(_BIRTHDAYS_ALL, _serialise(items), ttl)
+    logger.info("Cached %d birthdays (all workspaces)", len(items))
 
-    payload = [item.dict() if hasattr(item, "dict") else item for item in items]
-    redis.set(key, json.dumps(payload), ex=CACHE_TTL)
+#  ─────────────────────────────DELETE cached birthdays (all)─────────────────────────────
+def invalidate_birthdays_all() -> None:
+    _safe_del(_BIRTHDAYS_ALL)
+    logger.info("Invalidated birthdays:all cache")
 
-    logger.info(f"Set cache for user {user_id} with {len(payload)} item(s)")
+### ──────────────────────────────────────────────────────────Birthdays – per workspace──────────────────────────────────────────────────────────###
+#─────────────────────────────GET cached birthdays (workspace)─────────────────────────────
+def get_cached_birthdays_by_workspace(workspace_id: UUID) -> Optional[List[Dict[str, Any]]]:
+    return _deserialise(_safe_get(_BIRTHDAYS_BY_WS(workspace_id)))
 
-# ─────────────────────────────Invalidate user's cached birthdays─────────────────────────────
-def invalidate_birthdays_cache(user_id: UUID):
-    key = _cache_key(user_id)
-    redis.delete(key)
-    logger.info(f"Invalidated cache for user {user_id}")
+#─────────────────────────────SET cached birthdays (workspace)─────────────────────────────
+def set_cached_birthdays_by_workspace(workspace_id: UUID,
+                                      items: Sequence[Any],
+                                      ttl: int = CACHE_TTL) -> None:
+    _safe_set(_BIRTHDAYS_BY_WS(workspace_id), _serialise(items), ttl)
+    logger.info("Cached %d birthdays for workspace %s", len(items), workspace_id)
 
-# ─────────────────────────────List user cache─────────────────────────────
-def list_user_cache(user_id: UUID,
-                    include_values: bool = True) -> Dict[str, Any]: # List all Redis keys/values under this user’s prefix.
-    prefix = _user_prefix(user_id)
-    cursor = 0
-    keys: List[str] = []
-    while True:
-        cursor, batch = redis.scan(cursor=cursor, match=f"{prefix}*")
-        keys.extend(batch)
-        if cursor == 0:
-            break
+#─────────────────────────────DELETE cached birthdays (workspace)─────────────────────────────
+def invalidate_birthdays_by_workspace(workspace_id: UUID) -> None:
+    _safe_del(_BIRTHDAYS_BY_WS(workspace_id))
+    logger.info("Invalidated birthday cache for workspace %s", workspace_id)
 
-    if not include_values:
-        return {k: None for k in keys}
 
-    if keys:
-        values = redis.mget(keys)
-        return dict(zip(keys, values))
-    return {}
+### ──────────────────────────────────────────────────────────Users (all)──────────────────────────────────────────────────────────###
+#─────────────────────────────GET cached users (all)─────────────────────────────
+def get_cached_users_all() -> Optional[List[Dict[str, Any]]]:
+    return _deserialise(_safe_get(_USERS_ALL))
 
-# ─────────────────────────────Clear user cache─────────────────────────────
-def clear_user_cache(user_id: UUID) -> int: # Delete all Redis keys that belong to the user. Returns the number of keys deleted.
-    keys = list_user_cache(user_id, include_values=False).keys()
-    if not keys:
-        return 0
-    total_deleted = 0
+#─────────────────────────────SET cached users (all)─────────────────────────────
+def set_cached_users_all(items: Sequence[Any], ttl: int = CACHE_TTL) -> None:
+    _safe_set(_USERS_ALL, _serialise(items), ttl)
+    logger.info("Cached %d users", len(items))
 
-    key_list = list(keys)
-    batch_size = 1000 # Delete in batches of 1000
-    for i in range(0, len(key_list), batch_size):
-        batch = key_list[i : i + batch_size]
-        deleted = redis.delete(*batch)
-        total_deleted += deleted
+#─────────────────────────────DELETE cached users (all)─────────────────────────────
+def invalidate_users_cache_all() -> None:
+    _safe_del(_USERS_ALL)
+    logger.info("Invalidated users:all cache")
 
-    logger.info("Cleared %d cache key(s) for user %s", total_deleted, user_id)
-    return total_deleted
+### ──────────────────────────────────────────────────────────Workspaces (all)──────────────────────────────────────────────────────────###
+#─────────────────────────────GET cached workspaces (all)─────────────────────────────
+def get_cached_workspaces() -> Optional[List[Dict[str, Any]]]:
+    return _deserialise(_safe_get(_WORKSPACES_ALL))
 
-# ─────────────────────────────List all users cache─────────────────────────────
-def list_all_users_cache(include_values: bool = True) -> Dict[str, Optional[Dict[str, Any]]]: # Return a mapping for every user that has at least one key.  Uses SCAN so it does *not* block Redis. If include_values=False, returns {user_id: {key: None}} so you can see the inventory without transferring a lot of data.
-    pattern = "user:*:*" # Any key that follows user:{uuid}:{resource}
-    cursor = 0
-    results: dict[str, dict[str, Any] | None] = {}
+#─────────────────────────────SET cached workspaces (all)─────────────────────────────
+def set_cached_workspaces(items: Sequence[Any], ttl: int = CACHE_TTL) -> None:
+    _safe_set(_WORKSPACES_ALL, _serialise(items), ttl)
+    logger.info("Cached %d workspaces", len(items))
 
-    while True:
-        cursor, batch = redis.scan(cursor=cursor, match=pattern, count=500)
-        for full_key in batch:
-            _, user_id, _ = full_key.split(":", 2)   # Faster than regex according to the internet
-            results.setdefault(user_id, {})
-            if include_values:
-                value = redis.get(full_key)
-                results[user_id][full_key] = value
-            else:
-                results[user_id][full_key] = None
-        if cursor == 0:
-            break
-
-    return results
+#─────────────────────────────GET cached workspaces (all)─────────────────────────────
+def invalidate_workspaces_cache() -> None:
+    _safe_del(_WORKSPACES_ALL)
+    logger.info("Invalidated workspaces:all cache")

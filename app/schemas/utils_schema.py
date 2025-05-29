@@ -1,26 +1,16 @@
 # /app/schemas/utils_schema.py
 
-from typing import List, Any, Optional 
-from uuid import UUID
+from typing import Any, List
 from pydantic import BaseModel
 
-# ─────────────────────────────Timezone model─────────────────────────────
-class TimezoneList(BaseModel):
+class TimezoneList(BaseModel): # Used by /timezones
     timezones: List[str]
 
-# ─────────────────────────────Job results model ─────────────────────────────
-class JobResult(BaseModel):
+class JobResult(BaseModel): # Used by /run-birthday-job
     detail: str
 
-# ─────────────────────────────Count results model─────────────────────────────
-class CountResult(BaseModel):
-    count: int
+class CountResult(BaseModel): # Used by /refresh-birthday-table & /backfill-birthdays
+    count: int 
 
-# ─────────────────────────────Cache results model─────────────────────────────
-class CacheResult(BaseModel):
-    user_id: UUID
-    cached: Optional[List[dict[str, Any]]] = None
-
-# ─────────────────────────────Cache all users model─────────────────────────────
-class CacheAllUsers(BaseModel):
-    users: dict[str, dict[str, Any | None]]
+class CacheResult(BaseModel): # Single cache wrapper. Used by all /cache utils
+    data: Any

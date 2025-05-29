@@ -7,15 +7,33 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlmodel import Session, select, update
 from sqlalchemy.exc import IntegrityError
+from redis.exceptions import RedisError
 from app.models.birthday_model import Birthday
 from app.models.user_model import User
 from app.models.workspace_model import Workspace
 from app.schemas.workspace_schema import WorkspaceCreate, WorkspaceUpdate
+from app.services.redis_cache_service import (get_cached_workspaces, set_cached_workspaces, invalidate_workspaces_cache,)
 logger = logging.getLogger(__name__)
 
 # ───────────────────────────List workspaces────────────────────────────
 def list_workspaces(session: Session) -> List[Workspace]: # Return every workspace
-    return session.exec(select(Workspace)).all()
+    try:
+        cached = get_cached_workspaces() # Get workspaces cache
+    except RedisError as e:
+        logger.warning("Redis GET error in list_workspaces, skipping cache: %s", e)
+        cached = None
+
+    if cached is not None:
+        logger.debug("list_workspaces: cache hit")
+        return [Workspace.parse_obj(d) for d in cached] # Deserialize into instances
+
+    workspaces = session.exec(select(Workspace)).all() # Hit database if nothing in cache
+
+    try:
+        set_cached_workspaces(workspaces) # Populate Redis cache for next list
+    except RedisError as e:
+        logger.warning("Redis SET error in list_workspaces: %s", e)
+    return workspaces
 
 # ─────────────────────────────Create workspace─────────────────────────────
 def create_workspace(session: Session, # Insert and return a new workspace
@@ -32,7 +50,13 @@ def create_workspace(session: Session, # Insert and return a new workspace
         session.commit()
         session.refresh(ws)
         logger.info("Workspace %s created", ws.id)
+        
+        try:
+            invalidate_workspaces_cache() # Clear stale cache
+        except RedisError as e:
+            logger.warning("Redis DELETE error in create_workspace: %s", e)
         return ws
+    
     except IntegrityError:
         session.rollback()
         logger.exception("Integrity error creating workspace")
@@ -63,7 +87,13 @@ def update_workspace(session: Session, # Apply updates
         session.commit()
         session.refresh(ws)
         logger.info("Workspace %s updated", ws.id)
+        try:
+            invalidate_workspaces_cache()
+        except RedisError as e:
+            logger.warning("Redis DELETE error in update_workspace: %s", e)
+        
         return ws
+    
     except IntegrityError:
         session.rollback()
         logger.exception("Integrity error updating workspace %s", workspace_id)
@@ -96,6 +126,11 @@ def delete_workspace(session: Session, # Delete a workspace, null out workspace_
         session.delete(ws)
         session.commit()
         logger.info("Workspace %s deleted; orphaned birthdays updated", workspace_id)
+        try:
+            invalidate_workspaces_cache()
+        except RedisError as e:
+            logger.warning("Redis DELETE error in delete_workspace: %s", e)
+        
     except IntegrityError:
         session.rollback()
         logger.exception("Integrity error deleting workspace %s", workspace_id)
