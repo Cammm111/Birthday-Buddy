@@ -1,20 +1,27 @@
 # Birthday Buddy
 
-**Birthday Buddy** is a multi-tenant SaaS application that manages user's birthdays and sends personalized Slack notifications to each workspace (Slack channel). Built for collaboration and scalability, it includes user authentication, Redis caching, structured logging, and Slack integration.
+**Birthday Buddy** is a multi-tenant SaaS backend that tracks user birthdays and delivers personalized daily notifications to Slack channels, scoped by workspace. Designed for collaboration and automation, it features JWT-based authentication, Redis-backed caching, structured logging, and a scheduler for background jobs.
 
-## Tech Stack
+##  Tech Stack
+### Frontend
+This is a backend-only service. It exposes a REST API with:
+- **Swagger UI**: `/docs`
+- **OpenAPI JSON schema**: `/openapi.json`
+- **Slack**: serves as the user-facing notification interface
 
-|    Component     |        Technology       |
-|------------------|-------------------------|
-| Backend          | Python 3.12 + FastAPI   |
-| Database         | PostgreSQL              |
-| ORM              | SQLModel                |
-| Caching          | Redis                   |
-| Auth             | FastAPI Users (JWT)     |
-| Scheduler        | APScheduler             |
-| Notifications    | Slack Webhook API       |
-| Logging          | Python logging + File   |
-| Containerization | Docker & Docker Compose |
+### Backend Tech Stack
+
+|    Component      |        Technology       |
+|-------------------|-------------------------|
+| Backend           | Python 3.12 + FastAPI   |
+| Database          | PostgreSQL              |
+| ORM               | SQLModel                |
+| Caching           | Redis                   |
+| Auth              | FastAPI Users (JWT)     |
+| Scheduler         | APScheduler             |
+| Notifications     | Slack Webhook API       |
+| Logging           | Python logging + File   |
+| Containerization  | Docker & Docker Compose |
 
 ## Features
 
