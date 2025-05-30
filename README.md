@@ -9,7 +9,7 @@ This is a backend-only service. It exposes a REST API with:
 - **OpenAPI JSON schema**: `/openapi.json`
 - **Slack**: serves as the user-facing notification interface
 
-### Backend Tech Stack
+### Backend
 |    Component      |        Technology       |
 |-------------------|-------------------------|
 | Backend           | Python 3.12 + FastAPI   |
@@ -38,10 +38,41 @@ Deeper dive into FastAPI routes, services, cache, scheduler, and data stores.
 - Admin utilities for cache inspection and data sync
 - Timestamped log files in `/logs/` per run
 
+## Security
+
+### Data at Rest
+- **Development Configuration:**  
+  - PostgreSQL data stored in the Docker volume or bind-mount is **not** encrypted by default. Files live on your host filesystem unencrypted.  
+  - Redis cache persists data to disk unencrypted unless your local host filesystem is encrypted.  
+- **Production Configuration:**  
+  - Attach an **encrypted** block device to your Postgres container or use a managed Postgres service with at-rest encryption.  
+  - Use a managed Redis service or enable Redis’s `tls-port` with an encrypted volume to protect cache data at rest.
+
+### Data in Transit
+
+#### External Traffic (Client ↔ API)
+- **Development Configuration:**  
+  - FastAPI app listens on plain HTTP (`:8000`) in Docker Compose. All requests are unencrypted.  
+- **Production Configuration:**  
+  1. Reverse-Proxy Container (e.g. Nginx/Traefik) in Docker Compose   
+  2. Managed Cloud Load Balancer (AWS ALB, GCP HTTP(S) LB, Azure LB)  
+
+#### Internal Service Calls (App ↔ Database/Cache)
+- **Development Configuration:**  
+  - Connections to Postgres and Redis occur over plain TCP within the Docker network.  
+- **Production Configuration:**  
+  - Enforce TLS for Postgres (`sslmode=require`) and Redis (connect via `tls-port` with certificate validation).  
+
+### Logging
+- **Development Configuration:**  
+  - Uvicorn/FastAPI logs output to /logs.
+  - Slack notifications are sent but not logged beyond the container logs.  
+- **Production Configuration:**  
+  - Aggregate logs into a centralized system (ELK, Datadog, etc.); filter out or redact sensitive fields (passwords, tokens, PII).  
+  - Monitor Slack webhook deliveries and include webhook request/response details (excluding secrets) in your audit logs.  
 
 ## Authentication
 Authentication is powered by FastAPI Users. User passwords are securely hashed using **bcrypt**. All protected routes require a valid JWT.
-
 Auth Endpoints:
 - `POST /auth/jwt/login`        – obtain a JWT
 - `POST /auth/jwt/logout`       – invalidate the current JWT
