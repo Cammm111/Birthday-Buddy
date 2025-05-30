@@ -53,17 +53,17 @@ git clone https://github.com/Cammm111/birthday-buddy.git
 cd birthday-buddy
 ```
 
-## 2. Copy .env Template and Configure environment 
+### 2. Copy .env Template and Configure environment 
 ```powershell
 cp config/.env.template config/.env # Edit config/.env with your values
 ```
 
-## 3. Build & Start w/ Docker Compose
+### 3. Build & Start w/ Docker Compose
 ```powershell
 docker compose -f config/docker-compose.yaml up --build
 ```
 
-## 4. Access Birthday Buddy!
+### 4. Access Birthday Buddy!
  - Swagger UI: `http://localhost:8000/docs`
  - OpenAPI JSON: `http://localhost:8000/openapi.json`
 
