@@ -73,6 +73,7 @@ graph TD
   %% Volumes and env
   EnvVars --> birthdaybuddy_app
   PgVolume --> postgres
+```
 
 ## Features
 - JWT-based user authentication
