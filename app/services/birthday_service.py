@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 # ─────────────────────────────List birthdays─────────────────────────────
 def list_birthdays_by_workspace(session: Session, # Return birthdays for single workspace
+                                user_id: UUID,
                                 workspace_id: UUID) -> List[Birthday]:
     try:
         cached = get_cached_birthdays_by_workspace(workspace_id) # Try cache
