@@ -22,7 +22,7 @@ This is a backend-only service. It exposes a REST API with:
 | Logging           | Python logging + File   |
 | Containerization  | Docker & Docker Compose |
 
-## Architecture Diagram
+## Architecture Diagrams
 ![Package Level Diagram](diagrams/birthday_buddy_package_level.svg)
 High-level view of your host, containers, network, and external clients.
 
