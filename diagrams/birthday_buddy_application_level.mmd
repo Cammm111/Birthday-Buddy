@@ -1,0 +1,62 @@
+flowchart TD
+  %% ───────────────────── HTTP Flow ─────────────────────
+  subgraph HTTPFlow["HTTP"]
+    HTTPReq["Requests (JSON)"]
+    HTTPRes["Responses (JSON)"]
+  end
+
+  %% ───────────────────── App Container ─────────────────────
+  subgraph App["birthdaybuddy_app"]
+    direction TB
+
+    subgraph Routes["Routes"]
+      UR["user_route.py"]
+      BR["birthday_route.py"]
+      WR["workspace_route.py"]
+      UTR["utils_route.py"]
+    end
+
+    subgraph Services["Services"]
+      Auth["auth_service.py"]
+      USvc["user_service.py"]
+      BSvc["birthday_service.py"]
+      WSvc["workspace_service.py"]
+      UTSvc["utils_service.py"]
+      RCsvc["redis_cache_service.py"]
+      Sch["scheduler_service.py"]
+      Slk["slack_service.py"]
+    end
+
+    %% enforce vertical stacking & DI
+    Routes --> Services
+    Routes -.-> Auth
+  end
+
+  %% ───────────────────── HTTP In/Out ─────────────────────
+  HTTPReq --> Routes
+  Routes --> HTTPRes
+
+  %% ───────────────────── Route → Service Calls ─────────────────────
+  UR --> USvc
+  BR --> BSvc
+  WR --> WSvc
+  UTR --> UTSvc
+
+  %% ───────────────────── Service → Cache Calls ─────────────────────
+  USvc <--> RCsvc
+  BSvc <--> RCsvc
+  WSvc <--> RCsvc
+  UTSvc <--> RCsvc
+  RCsvc <--> Redis[("Redis Cache")]
+
+  %% ───────────────────── Scheduler & Slack ─────────────────────
+  UTR --> Sch
+  Sch --> BSvc
+  Sch --> Slk
+  Slk --> SlackChannel["Slack Channel"]
+
+  %% ───────────────────── Containerized Stores ─────────────────────
+  Services <--> DDB[("PostgreSQL")]
+
+  %% ───────────────────── Host Logs ─────────────────────
+  App --> Logs["Log Files (/logs)"]

@@ -1,0 +1,46 @@
+flowchart TD
+ subgraph Clients["Clients"]
+        SwaggerUI["Swagger UI (Developer Client)"]
+        Slack["Slack Channel (End User)"]
+  end
+ subgraph birthdaybuddy_app["Container: birthdaybuddy_app"]
+        Router["API Routers"]
+        Auth["Auth Layer"]
+        Services["Service Layer"]
+        Scheduler["APScheduler"]
+        SlackService["Slack Service (sends to webhook)"]
+  end
+ subgraph postgres["Container: postgres (Database)"]
+        Postgres[("PostgreSQL")]
+  end
+ subgraph redis["Container: redis (Cache)"]
+        Redis["Redis Cache<br>(TTL ~5 mins)"]
+  end
+ subgraph Docker_Network["Docker Compose Network"]
+        birthdaybuddy_app
+        postgres
+        redis
+  end
+ subgraph Host_Resources["Host Resources"]
+        EnvFile[".env (JWT_SECRET, DB_URL, etc.)"]
+        CodeVolume["Mounted Source Code: ../ → /app"]
+        LogVolume["Volume: /logs (mounted)"]
+        PgVolume["Volume: postgres_data"]
+        ComposeFile["docker-compose.yaml"]
+        Dockerfile["Dockerfile"]
+        EnvTemplate[".env.template"]
+  end
+    SwaggerUI --> Router
+    Router -. Depends on .-> Auth
+    Router --> Services
+    Services <--> Redis
+    Services --> Postgres & SlackService
+    SlackService --> Slack
+    Scheduler --> Services
+    CodeVolume --> birthdaybuddy_app
+    EnvFile --> birthdaybuddy_app
+    LogVolume <--> birthdaybuddy_app
+    PgVolume <--> postgres
+    ComposeFile --> Docker_Network
+    Dockerfile --> birthdaybuddy_app
+    EnvTemplate --> EnvFile
