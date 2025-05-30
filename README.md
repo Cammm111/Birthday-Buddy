@@ -23,7 +23,11 @@ This is a backend-only service. It exposes a REST API with:
 | Containerization  | Docker & Docker Compose |
 
 ## Architecture Diagram
-![Birthday Buddy Architecture](https://www.mermaidchart.com/raw/09c73fd8-c583-4a93-8b5f-fc83cdc94a25?theme=light&version=v0.1&format=svg)
+![Package Level Diagram](diagrams/birthday_buddy_package_level.svg)
+High-level view of your host, containers, network, and external clients.
+
+![Application Level Diagram](diagrams/birthday_buddy_application_level.svg)
+Deeper dive into FastAPI routes, services, cache, scheduler, and data stores.
 
 ## Features
 - JWT-based user authentication
