@@ -109,27 +109,31 @@ docker compose -f config/docker-compose.yaml up --build
 
 
 ## Application Package Structure
-### Application Structure - Application level
+### Application Structure 
+- Application level
 | Path          | Description                                                                          |
 | ------------- | ------------------------------------------------------------------------------------ |
 | `app/`        | Main application package. Bootstraps logging, database, scheduler, and routers.      |
 | `app/main.py` | Starts the FastAPI app, sets up logging, mounts routers, and launches the scheduler. |
 
-### Core Infrastructure - Application configuration files
+### Core Infrastructure 
+- Application configuration files
 | Path                         | Description                                                                                 |
 | ---------------------------- | ------------------------------------------------------------------------------------------- |
 | `app/core/config.py`         | Loads environment variables with Pydantic, sets up bcrypt hasher, and exposes app settings. |
 | `app/core/db.py`             | Initializes SQLModel engine, Redis client, creates tables, and seeds the admin user.        |
 | `app/core/logging_config.py` | Sets up timestamped log files and root logger configuration using `dictConfig`.             |
 
-### Models - SQLModel definitions
+### Models 
+- SQLModel definitions
 | Path                            | Description                                                                             |
 | ------------------------------- | --------------------------------------------------------------------------------------- |
 | `app/models/user_model.py`      | SQLModel definition for User, with relationships to Birthday and Workspace.             |
 | `app/models/birthday_model.py`  | SQLModel definition for Birthday, with one-to-one to User and many-to-one to Workspace. |
 | `app/models/workspace_model.py` | SQLModel definition for Workspace, linking to many Users and Birthdays.                 |
 
-### API Routes - Birthday Buddy endpoints
+### API Routes 
+- Birthday Buddy endpoints
 | Path                            | Description                                                                      |
 | ------------------------------- | -------------------------------------------------------------------------------- |
 | `app/routes/user_route.py`      | Endpoints for listing, updating, and managing users.                |
@@ -137,7 +141,8 @@ docker compose -f config/docker-compose.yaml up --build
 | `app/routes/workspace_route.py` | Endpoints for listing and managing workspaces (admin-only for mutations).        |
 | `app/routes/utils_route.py`     | Admin utilities for cache, sync, and background job triggers.                    |
 
-### Schemas - Pydantic models for endpoints
+### Schemas
+- Pydantic models for endpoints
 | Path                              | Description                                                      |
 | --------------------------------- | ---------------------------------------------------------------- |
 | `app/schemas/user_schema.py`      | Pydantic models for creating, reading, and updating users.       |
@@ -145,7 +150,8 @@ docker compose -f config/docker-compose.yaml up --build
 | `app/schemas/workspace_schema.py` | Pydantic models for managing workspace data.                     |
 | `app/schemas/utils_schema.py`     | Models used by utility routes (e.g. timezones, cache results).   |
 
-### Services - The dirty work
+### Services 
+- The dirty work
 | Path                                  | Description                                                                   |
 | ------------------------------------- | ----------------------------------------------------------------------------- |
 | `app/services/auth_service.py`        | Integrates FastAPI Users with SQLModel, handles JWT auth and user management. |
@@ -156,7 +162,8 @@ docker compose -f config/docker-compose.yaml up --build
 | `app/services/slack_service.py`       | Sends messages to Slack with retry and logging support.                       |
 | `app/services/redis_cache_service.py` | Manages Redis caching for birthday lookups with namespace handling.           |
 
-### Tests - Work in progress...
+### Tests 
+- Work in progress...
 | Path                         | Description                                 |
 | ---------------------------- | ------------------------------------------- |
 | `app/tests/user_test.py`     | Tests user CRUD operations and validations. |
