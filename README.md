@@ -23,57 +23,7 @@ This is a backend-only service. It exposes a REST API with:
 | Containerization  | Docker & Docker Compose |
 
 ## Architecture Diagram
-```mermaid
-graph TD
-  subgraph Clients
-    SwaggerUI["Swagger UI (Developer Client)"]
-    Slack["Slack (Receives Notifications)"]
-  end
-
-  subgraph Docker_Network["Docker Compose Network"]
-    
-    subgraph birthdaybuddy_app["Container: birthdaybuddy_app (FastAPI)"]
-      Router["API Routers"]
-      Auth["Auth Layer"]
-      Services["Service Layer"]
-      Scheduler["APScheduler"]
-      SlackService["Slack Service (sends to webhook)"]
-      EnvVars[".env (JWT_SECRET, DB_URL, etc.)"]
-      LogVolume["Mounted Volume: /app/logs"]
-    end
-
-    subgraph postgres["Container: postgres (Database)"]
-      Postgres[(PostgreSQL)]
-      PgVolume["Volume: postgres_data"]
-    end
-
-    subgraph redis["Container: redis (Cache)"]
-      Redis[(Redis Cache)]
-    end
-
-  end
-
-  SwaggerUI --> Router
-
-  Router -.->|Depends on| Auth
-  Router --> Services
-
-  Services --> Redis
-  Services --> Postgres
-  Services --> SlackService
-  
-  SlackService --> Slack
-
-  Scheduler --> Services
-
-  Router --> LogVolume
-  Services --> LogVolume
-  Scheduler --> LogVolume
-
-  %% Volumes and env
-  EnvVars --> birthdaybuddy_app
-  PgVolume --> postgres
-```
+![Birthday Buddy Architecture](https://www.mermaidchart.com/raw/09c73fd8-c583-4a93-8b5f-fc83cdc94a25?theme=light&version=v0.1&format=svg)
 
 ## Features
 - JWT-based user authentication
