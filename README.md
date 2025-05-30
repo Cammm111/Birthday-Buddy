@@ -171,14 +171,11 @@ Work in progress...
 
 
 ## Supporting Systems
-- PostgreSQL (Docker)       # Stores all persistent data (users, birthdays, workspaces) in a PostgreSQL 
-                              container
-- Redis (Docker)            # Caches birthday lists by user to reduce database load
-- Slack Webhooks            # Slack channels receive birthday messages based on the workspace 
-                              configuration
-- APScheduler               # Schedules and runs the birthday_job daily at 9am
-- Logging                   # Timestamps and logs all service activity to /logs/, with a new .log file 
-                              created per app restart
+- PostgreSQL (Docker): Stores all persistent data (users, birthdays, workspaces) in a PostgreSQL container                  
+- Redis (Docker): Caches birthday lists by user to reduce database load
+- Slack Webhooks: Slack channels receive birthday messages based on the workspace configuration
+- APScheduler: Schedules and runs the birthday_job daily at 9am
+- Logging: Timestamps and logs all service activity to /logs/, with a new .log file created per app restart
 
 ## License
 Birthday Buddy Studios (aka my attic) © 2025 Cameron Manchester
