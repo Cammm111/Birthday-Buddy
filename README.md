@@ -38,21 +38,21 @@ Auth Endpoints:
 - `POST /auth/forgot-password`  – request a password reset 
 - `POST /auth/reset-password`   – perform a password reset
 
-### Setup Instructions
-## 1. Clone the repository
+## Setup Instructions
+### 1. Clone the repository
 
-```bash
+```powershell
 git clone https://github.com/Cammm111/birthday-buddy.git
 cd birthday-buddy
 ```
 
-## 2. Copy/Configure environment 
-```bash
+## 2. Copy .env Template and Configure environment 
+```powershell
 cp config/.env.template config/.env # Edit config/.env with your values
 ```
 
 ## 3. Build & Start w/ Docker Compose
-```bash
+```powershell
 docker compose -f config/docker-compose.yaml up --build
 ```
 
@@ -61,43 +61,48 @@ docker compose -f config/docker-compose.yaml up --build
  - OpenAPI JSON: `http://localhost:8000/openapi.json`
 
 ## Stopping/Starting Stack
-```bash
-docker stop $(docker ps -aq --filter label=com.docker.compose.project=birthday-buddy)
+```powershell
+docker stop $(docker ps -q --filter "label=com.docker.compose.project=birthdaybuddy")
 ```
-
-```bash
+```powershell
 docker start $(docker ps -aq --filter "label=com.docker.compose.project=birthday-buddy")
+```
+## Reloading The Stack
+```powershell
+docker compose -f config/docker-compose.yaml up --build
 ```
 
 ## Environment Variables
-
-|      Variable      |               Description              |
-|--------------------|----------------------------------------|
-| `JWT_SECRET`       | JWT secret for authentication <string> |
-| `SLACK_WEBHOOK_URL`| Default Slack Webhook <string>         |
-| `ADMIN_EMAIL`      | Admin default email <string>           |
-| `ADMIN_PASSWORD`   | Admin default password <string>        |
-| `ADMIN_DOB`        | Admin default Date of Birth <string>   |
-| `REDIS_URL`        | Redis connection <string>              |
-| `DATABASE_URL`     | PostgreSQL connection <string>         |
+| Variable               | Description                                                  |
+|------------------------|--------------------------------------------------------------|
+| `JWT_SECRET`           | Secret used to sign JWT tokens for user authentication       |
+| `SLACK_WEBHOOK_URL`    | Default Slack webhook URL used for sending birthday messages |
+| `ADMIN_EMAIL`          | Default email used to seed the admin user                    |
+| `ADMIN_PASSWORD`       | Default password for the seeded admin user                   |
+| `ADMIN_DOB`            | Date of birth for the seeded admin user (format: YYYY-MM-DD) |
+| `REDIS_URL`            | Redis connection URL (used for caching)                      |
+| `DATABASE_URL`         | PostgreSQL connection URL                                    |
+| `COMPOSE_PROJECT_NAME` | Docker Compose project name (used to name containers)        |
 
 ## Sample endpoints:
 - `GET /birthdays/` — List birthdays in current user’s workspace (authenticated user only)
 - `POST /workspaces/` — Create a workspace (admin only)
 - `PATCH /users/{user_id}` — Update user and sync birthday (admin only)
 
-## Admin Utilities
+## Utilities
+- `GET /utils/timezones` — List all supported time zones (public)
+- `POST /utils/run-birthday-job` — Manually trigger today’s Slack birthday notifications (admin only)
+- `POST /utils/refresh-birthday-table` — Sync birthdays table from existing user records (admin only)
+- `POST /utils/backfill-birthdays` — Insert birthdays only for users missing one (admin only)
+- `GET /utils/cache/all` — Return full cache blob (users, birthdays, workspaces) (admin only)
+- `GET /utils/cache/birthdays/all` — Return only cached birthday data (admin only)
+- `GET /utils/cache/users/all` — Return only cached user data (admin only)
+- `GET /utils/cache/workspaces/all` — Return only cached workspace data (admin only)
 
-| Endpoint                                  | Description                     |
-|-------------------------------------------|---------------------------------|
-| `POST /utils/run-birthday-job`            | Trigger Slack birthday job      |
-| `GET /utils/cache/birthdays/{user_id}`    | Inspect Redis cache             |
-| `DELETE /utils/cache/birthdays/{user_id}` | Invalidate cache                |
-| `POST /utils/refresh-birthday-table`      | Sync birthdays from users       |
-| `POST /utils/backfill-birthdays`          | Create missing birthdays        |
 
-## Architecture Explanation
-### Project Structure
+
+## Application Package Structure
+### Application Structure
 | Path          | Description                                                                          |
 | ------------- | ------------------------------------------------------------------------------------ |
 | `app/`        | Main application package. Bootstraps logging, database, scheduler, and routers.      |
