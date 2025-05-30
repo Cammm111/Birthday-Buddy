@@ -49,7 +49,6 @@ Deeper dive into FastAPI routes, services, cache, scheduler, and data stores.
   - Use a managed Redis service or enable Redis’s `tls-port` with an encrypted volume to protect cache data at rest.
 
 ### Data in Transit
-
 #### External Traffic (Client ↔ API)
 - **Development Configuration:**  
   - FastAPI app listens on plain HTTP (`:8000`) in Docker Compose. All requests are unencrypted.  
