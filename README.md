@@ -96,28 +96,28 @@ docker start $(docker ps -aq --filter "label=com.docker.compose.project=birthday
 | `POST /utils/refresh-birthday-table`      | Sync birthdays from users       |
 | `POST /utils/backfill-birthdays`          | Create missing birthdays        |
 
-### Architecture Explanation
-# Project Structure
+## Architecture Explanation
+### Project Structure
 | Path          | Description                                                                          |
 | ------------- | ------------------------------------------------------------------------------------ |
 | `app/`        | Main application package. Bootstraps logging, database, scheduler, and routers.      |
 | `app/main.py` | Starts the FastAPI app, sets up logging, mounts routers, and launches the scheduler. |
 
-# Core Infrastructure
+### Core Infrastructure
 | Path                         | Description                                                                                 |
 | ---------------------------- | ------------------------------------------------------------------------------------------- |
 | `app/core/config.py`         | Loads environment variables with Pydantic, sets up bcrypt hasher, and exposes app settings. |
 | `app/core/db.py`             | Initializes SQLModel engine, Redis client, creates tables, and seeds the admin user.        |
 | `app/core/logging_config.py` | Sets up timestamped log files and root logger configuration using `dictConfig`.             |
 
-# Models
+### Models
 | Path                            | Description                                                                             |
 | ------------------------------- | --------------------------------------------------------------------------------------- |
 | `app/models/user_model.py`      | SQLModel definition for User, with relationships to Birthday and Workspace.             |
 | `app/models/birthday_model.py`  | SQLModel definition for Birthday, with one-to-one to User and many-to-one to Workspace. |
 | `app/models/workspace_model.py` | SQLModel definition for Workspace, linking to many Users and Birthdays.                 |
 
-# API Routes
+### API Routes
 | Path                            | Description                                                                      |
 | ------------------------------- | -------------------------------------------------------------------------------- |
 | `app/routes/user_route.py`      | Endpoints for listing, updating, and managing users.                |
@@ -125,7 +125,7 @@ docker start $(docker ps -aq --filter "label=com.docker.compose.project=birthday
 | `app/routes/workspace_route.py` | Endpoints for listing and managing workspaces (admin-only for mutations).        |
 | `app/routes/utils_route.py`     | Admin utilities for cache, sync, and background job triggers.                    |
 
-# Schemas
+### Schemas
 | Path                              | Description                                                      |
 | --------------------------------- | ---------------------------------------------------------------- |
 | `app/schemas/user_schema.py`      | Pydantic models for creating, reading, and updating users.       |
@@ -133,7 +133,7 @@ docker start $(docker ps -aq --filter "label=com.docker.compose.project=birthday
 | `app/schemas/workspace_schema.py` | Pydantic models for managing workspace data.                     |
 | `app/schemas/utils_schema.py`     | Models used by utility routes (e.g. timezones, cache results).   |
 
-# Services
+### Services
 | Path                                  | Description                                                                   |
 | ------------------------------------- | ----------------------------------------------------------------------------- |
 | `app/services/auth_service.py`        | Integrates FastAPI Users with SQLModel, handles JWT auth and user management. |
@@ -144,7 +144,7 @@ docker start $(docker ps -aq --filter "label=com.docker.compose.project=birthday
 | `app/services/slack_service.py`       | Sends messages to Slack with retry and logging support.                       |
 | `app/services/redis_cache_service.py` | Manages Redis caching for birthday lookups with namespace handling.           |
 
-# Tests
+### Tests
 | Path                         | Description                                 |
 | ---------------------------- | ------------------------------------------- |
 | `app/tests/user_test.py`     | Tests user CRUD operations and validations. |
