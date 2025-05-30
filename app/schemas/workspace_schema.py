@@ -23,7 +23,8 @@ class WorkspaceCreate(WorkspaceBase):
 # ─────────────────────────────Workspace read model─────────────────────────────
 class WorkspaceRead(WorkspaceBase):
     id: uuid.UUID
-    model_config = {"from_attributes": True}
+    class Config:
+        from_attributes = True
 
 # ─────────────────────────────Workspace update model─────────────────────────────
 class WorkspaceUpdate(SQLModel):

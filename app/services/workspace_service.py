@@ -80,7 +80,7 @@ def update_workspace(session: Session, # Apply updates
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Workspace with id={workspace_id} not found")
 
-    for field, value in payload.dict(exclude_unset=True).items():
+    for field, value in payload.model_dump(exclude_unset=True, mode="json").items():
         setattr(ws, field, value)
 
     try:

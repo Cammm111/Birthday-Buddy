@@ -10,7 +10,7 @@ from sqlmodel import SQLModel, Field, Relationship
 # ──────────────────────────Define user model──────────────────────────────────────────
 class User(SQLModel, table=True):
     user_id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    email: EmailStr = Field(sa_column=Column("email", String, unique=True, index=True, nullable=False))
+    email: EmailStr = Field(sa_column=Column("email", String, unique=True, index=True, nullable=False)) # Indexing for email on user
     name: str = Field(default="Unknown") # Need to have a value for name 
     hashed_password: str
     date_of_birth: date = Field(nullable=False)

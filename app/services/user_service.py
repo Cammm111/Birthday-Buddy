@@ -53,7 +53,7 @@ def list_users(session: Session) -> List[User]: # Return every user in the syste
         logger.debug("list_users: cache hit")
         return [User.parse_obj(d) for d in cached]
 
-    users = session.exec(select(User)).all()  # Hit the database if no cache
+    users = session.exec(select(User)).all()  # Hit database if no cache
 
     try:
         set_cached_users_all(users) # Populate cache
@@ -114,7 +114,7 @@ def update_user(session: Session,
     if not (current_user.is_superuser or current_user.user_id == target_user_id): # Self or admin
         return None
 
-    data = payload.dict(exclude_unset=True)
+    data = payload.model_dump(exclude_unset=True, mode="json")
 
     if "password" in data: 
         data["hashed_password"] = pwd_context.hash(data.pop("password")) # Hash new password if provided

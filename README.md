@@ -97,88 +97,59 @@ docker start $(docker ps -aq --filter "label=com.docker.compose.project=birthday
 | `POST /utils/backfill-birthdays`          | Create missing birthdays        |
 
 ## Architecture Explanation
-app/                        # This is the main application package. It contains the following submodules:
+Project Structure
+| Path          | Description                                                                          |
+| ------------- | ------------------------------------------------------------------------------------ |
+| `app/`        | Main application package. Bootstraps logging, database, scheduler, and routers.      |
+| `app/main.py` | Starts the FastAPI app, sets up logging, mounts routers, and launches the scheduler. |
 
- - main.py                  # Sets up logging, loads environment variables, initializes database (and 
-                              seeds the admin user), initializes Birthday Buddy app, starts the scheduler service, and mounts routers
----------------------------------------------------------------------------------------------------------------------------------
-app/core/                   # Infrastructure code
-  - config.py               # Defines a Pydantic Settings class that reads environment variables from 
-                              config/.env, sets up a BCrypt password‐hasher, provides a hashed_admin_password property for seeding the admin user, and instantiates that global Settings class
+Core Infrastructure
+| Path                         | Description                                                                                 |
+| ---------------------------- | ------------------------------------------------------------------------------------------- |
+| `app/core/config.py`         | Loads environment variables with Pydantic, sets up bcrypt hasher, and exposes app settings. |
+| `app/core/db.py`             | Initializes SQLModel engine, Redis client, creates tables, and seeds the admin user.        |
+| `app/core/logging_config.py` | Sets up timestamped log files and root logger configuration using `dictConfig`.             |
 
-  - db.py                   # Creates SQLModel engine, aliases SessionLocal for session 
-                              creation, defines Redis client, defines init_db() to create all tables, look up existing superuser, insert the admin user if missing (catching and rolling back any IntegrityError to handle startup race conditions), and provides get_session() as a FastAPI dependency to yield and clean up database sessions
+Models
+| Path                            | Description                                                                             |
+| ------------------------------- | --------------------------------------------------------------------------------------- |
+| `app/models/user_model.py`      | SQLModel definition for User, with relationships to Birthday and Workspace.             |
+| `app/models/birthday_model.py`  | SQLModel definition for Birthday, with one-to-one to User and many-to-one to Workspace. |
+| `app/models/workspace_model.py` | SQLModel definition for Workspace, linking to many Users and Birthdays.                 |
 
-  - logging_config.py       # Creates a logs/ directory (if missing), generates a timestamped logfile 
-                              name, and applies a dictConfig that attaches console and file handlers to the root logger and Uvicorn loggers at INFO level.
----------------------------------------------------------------------------------------------------------------------------------
-app/models/                 # Defines database models using SQLModel including relationships and 
-                              foreign keys
+API Routes
+| Path                            | Description                                                                      |
+| ------------------------------- | -------------------------------------------------------------------------------- |
+| `app/routes/user_route.py`      | Endpoints for listing, updating, and managing users.                |
+| `app/routes/birthday_route.py`  | Endpoints for managing birthdays. Users get scoped access, admins get full CRUD. |
+| `app/routes/workspace_route.py` | Endpoints for listing and managing workspaces (admin-only for mutations).        |
+| `app/routes/utils_route.py`     | Admin utilities for cache, sync, and background job triggers.                    |
 
-  - birthday_model.py       # Defines the Birthday SQLModel table (birthday). Enforces a uniqueness constraint on user_id and 
-                              sets up bidirectional relationships: a one-to-one link to User and a one-to-many link to Workspace.
+Schemas
+| Path                              | Description                                                      |
+| --------------------------------- | ---------------------------------------------------------------- |
+| `app/schemas/user_schema.py`      | Pydantic models for creating, reading, and updating users.       |
+| `app/schemas/birthday_schema.py`  | Pydantic models for CRUD operations on birthdays.                |
+| `app/schemas/workspace_schema.py` | Pydantic models for managing workspace data.                     |
+| `app/schemas/utils_schema.py`     | Models used by utility routes (e.g. timezones, cache results).   |
 
-  - user_model.py           # Defines the User SQLModel table (user). It establishes a one-to-one relationship with Birthday (so 
-                              each user has at most one birthday record) and a many-to-one relationship with Workspace (so many users can share a workspace). It exposes an id property aliasing user_id for compatibility with FastAPI-Users.
-                              
-  - workspace_model.py      # Defines the Workspace SQLModel table (workspace). It sets up one-to-many relationships to User (so 
-                              a workspace can contain many users) and to Birthday (so a workspace can host many birthday entries).
----------------------------------------------------------------------------------------------------------------------------------
-app/routes/                 # FastAPI routes that are organized by domain/feature 
+Services
+| Path                                  | Description                                                                   |
+| ------------------------------------- | ----------------------------------------------------------------------------- |
+| `app/services/auth_service.py`        | Integrates FastAPI Users with SQLModel, handles JWT auth and user management. |
+| `app/services/user_service.py`        | Business logic for managing users, including syncing with birthdays.          |
+| `app/services/birthday_service.py`    | Handles birthday CRUD, integrity checks, and Redis cache invalidation.        |
+| `app/services/workspace_service.py`   | Admin logic for managing workspaces and linked entities.                      |
+| `app/services/scheduler_service.py`   | Sets up daily job to notify Slack of birthdays.                               |
+| `app/services/slack_service.py`       | Sends messages to Slack with retry and logging support.                       |
+| `app/services/redis_cache_service.py` | Manages Redis caching for birthday lookups with namespace handling.           |
 
-  - /birthday_route         # Defines /birthday router with endpoints for birthday records. Authenticated users can 
-                              list, update, and delete only their own entries, while admins gain additional routes to list all birthdays and create new ones. All data access/mutations are delegated to the birthday_service, and each endpoint is annotated with OpenAPI metadata.
+Tests
+| Path                         | Description                                 |
+| ---------------------------- | ------------------------------------------- |
+| `app/tests/user_test.py`     | Tests user CRUD operations and validations. |
+| `app/tests/birthday_test.py` | Tests birthday-related functionality.       |
 
-  - /users_route            # Defines the /users router with endpoints for user management. Authenticated users can list members 
-                              of their own workspace and update only their own profile. Admins can list all users and delete any account. All data access/mutations delegate to the user_service and each endpoint is annotated with OpenAPI metadata.
-
-  - /utils_route            # Because sometimes Admins just want an EASY button...
-
-  - /workspace_route        # Defines the /workspaces router and its CRUD endpoints. Anyone may list all workspaces, while only Admins can create, 
-                              patch, or delete a workspace. All data access/mutations delegate to the workspace_service.
----------------------------------------------------------------------------------------------------------------------------------
-app/schemas/                # Where those API dreams meet data validation reality... Separate from the SQLModel in models/ to control API surface 
-                              w/o touching the database
-
-  - birthday_schema.py      # Pydantic schemas for Birthdays. Supplies four schemas — BirthdayCreate, BirthdayRead, BirthdayUpdate, and the shared 
-                              BirthdayBase.
-
-  - user_schema.py          # Extends FastAPI-Users’ base models with custom fields (date_of_birth, workspace_id). Provides three Pydantic 
-                              schemas—UserRead, UserCreate, and UserUpdate.
-
-  - workspace_schema.py     # Defines the Workspace schemas used throughout the API. WorkspaceBase holds shared fields, while WorkspaceCreate, 
-                              WorkspaceRead, and WorkspaceUpdate support create-payloads, read-responses, and partial updates. A regex on slack_webhook enforces that only valid Slack incoming-webhook URLs are accepted.
-
-  - utils_schema.py         # Pydantic schemas for the /utils endpoints. Defines TimezoneList, JobResult, CountResult , CacheResult, and 
-                              CacheAllUsers
----------------------------------------------------------------------------------------------------------------------------------
-app/services/               # Where the actual business logic lives (not just a buzzword, I promise)
-
-  - auth_service.py         # Handles user authentication and authorization by integrating FastAPI-Users with SQLModel and JWT. It provides a 
-                              database dependency for user records, bcrypt-based password hashing, a custom user manager that validates workspaces and auto-creates birthdays, and a JWT auth backend
-
-  - birthday_service.py     # Centralizes all birthday-related logic. CRUD operations (with cache invalidation and integrity checks), and a helper 
-                              to sync birthday records with user profiles. Logs key events and ensures data consistency across database and cache.
-
-  - redis_cache_service.py  # Implements Redis-backed caching for birthday lists, offering functions to get, set, and invalidate per-user caches 
-                              with a 5-minute Time to Live. It also includes utilities to list, inspect, and clear all Redis keys under a given user’s namespace, as well as a global method to audit every user’s cached entries.
-
-  - scheduler_service.py    # Configures an APScheduler background job that runs every day at 9 AM ET, queries today’s birthdays from the database, 
-                              and sends Slack messages. It exposes start_scheduler() and stop_scheduler() functions to begin or halt the scheduler cleanly.
-
-  - slack_service.py        # Provides a reusable function that sends messages to a Slack incoming webhook, locally caching WebhookClient instances 
-                              and retrying on transient errors. It returns a boolean success flag and logs all outcomes, including rate‐limits.
-
-  - user_service.py         # Provides CRUD operations for Users - including password hashing, data validation, and permission checks—and ensures 
-                              any changes to user profile fields are reflected in the Birthday table.
-
-  - workspace_service.py    # Implements the business logic for managing workspaces. Ensures only superusers can create, update, or delete 
-                              workspaces, providing functions to list all workspaces, create a new workspace from incoming data (with integrity checks), apply updates to existing workspaces, and safely delete a workspace while nullifying any linked birthday records.
-
----------------------------------------------------------------------------------------------------------------------------------
-app/tests/                  # Exists. Runs. Mostly passes... [**IN DEVELOPMENT**]
-  - birthday_test.py        # Tests birthday CRUD operations
-  - user_test.py            # Tests user CRUD operations
 
 
 ## Supporting Systems

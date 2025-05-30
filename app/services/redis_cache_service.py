@@ -20,9 +20,13 @@ _WORKSPACES_ALL = "workspaces:all"
 #─────────────────────────────_serialize helper─────────────────────────────
 def _serialise(items: Sequence[Any]) -> str: # Return a JSON string, converting SQLModel/Pydantic objects to dict
     def to_dict(x: Any) -> Any:
-        return x.dict() if hasattr(x, "dict") else x
-    return json.dumps([to_dict(i) for i in items], default=str)
+        if hasattr(x, "model_dump"): # SQLModel / Pydantic v2
+            return x.model_dump(mode="json")
+        if hasattr(x, "dict"): # Pydantic v1
+            return x.dict()
+        return x
 
+    return json.dumps([to_dict(i) for i in items], default=str)
 #─────────────────────────────_deserialize helper─────────────────────────────
 def _deserialise(raw: Optional[str]) -> Optional[List[Dict[str, Any]]]: # String to list
     return json.loads(raw) if raw else None

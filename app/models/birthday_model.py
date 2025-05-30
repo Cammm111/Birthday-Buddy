@@ -16,7 +16,7 @@ class Birthday(SQLModel, table=True):
     __tablename__ = "birthday"
     __table_args__ = (UniqueConstraint("user_id", name="uq_birthday_user"),)
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    user_id: Optional[uuid.UUID] = Field(default=None, foreign_key="user.user_id", unique=True)
+    user_id: Optional[uuid.UUID] = Field(default=None, foreign_key="user.user_id", unique=True) # Indexing for user_id in birthday
     name: str = Field(nullable=False)
     date_of_birth: date = Field(nullable=False)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

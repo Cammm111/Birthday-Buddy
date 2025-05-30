@@ -15,8 +15,11 @@ router = APIRouter(prefix="/users", tags=["users"]) # Router prefix "/users". Gr
 
 # ──────────────────────────────────GET /users──────────────────────────────────
 @router.get("/",
-    response_model=List[UserRead]# Response models defined in user_schema.py
-) 
+    response_model=List[UserRead], # Response models defined in user_schema.py
+    summary="List users in your workspace (Auth: Any active user)",
+    description="Returns all users belonging to the authenticated user's workspace."
+)
+
 def list_users(session: Session = Depends(get_session),
     user=Depends(current_active_user)):
     stmt = select(User).where(User.workspace_id == user.workspace_id) # Only return users belonging to the current user’s workspace
@@ -24,16 +27,20 @@ def list_users(session: Session = Depends(get_session),
 
 # ──────────────────────────────────GET /users/all──────────────────────────────────
 @router.get("/all",
-     response_model=List[UserRead],
-     dependencies=[Depends(current_superuser)] # Admins only!
+    response_model=List[UserRead],
+    dependencies=[Depends(current_superuser)], # Admins only!
+    summary="List all users in the database (Auth: Admin)",
+    description="Returns all users belonging to the database."
 )
-def list_all_users(session: Session = Depends(get_session)):
-    stmt = select(User)
-    return session.exec(stmt).all()
+def list_users(session: Session = Depends(get_session)):
+     return user_service.list_users(session) # Calls set_cached_users_all internally. This took a while to catch
 
 # ──────────────────────────────────PATCH /users/{user_id}──────────────────────────────────
 @router.patch("/{user_id}",
-    response_model=UserRead)
+    response_model=UserRead,
+    summary="Update user information (Auth: Any active user (self) or Admin (anyone))",
+    description="Update user information (self) or any user's information (admin)."
+)
 def patch_user(
     user_id: UUID,
     payload: UserUpdate,
@@ -47,8 +54,10 @@ def patch_user(
 
 # ──────────────────────────────────DELETE /users/{user_id}──────────────────────────────────
 @router.delete("/{user_id}",
-     status_code=status.HTTP_204_NO_CONTENT, # No response for deletion
-     dependencies=[Depends(current_superuser)] # Admins only!
+    status_code=status.HTTP_204_NO_CONTENT, # No response for deletion
+    dependencies=[Depends(current_superuser)], # Admins only!
+    summary="Delete users from the database (Auth: Admin)",
+    description="Delete user based on user_id."
 )
 def delete_user(user_id: UUID,
      session: Session = Depends(get_session)
