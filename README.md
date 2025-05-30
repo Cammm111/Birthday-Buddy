@@ -10,7 +10,6 @@ This is a backend-only service. It exposes a REST API with:
 - **Slack**: serves as the user-facing notification interface
 
 ### Backend Tech Stack
-
 |    Component      |        Technology       |
 |-------------------|-------------------------|
 | Backend           | Python 3.12 + FastAPI   |
@@ -23,8 +22,59 @@ This is a backend-only service. It exposes a REST API with:
 | Logging           | Python logging + File   |
 | Containerization  | Docker & Docker Compose |
 
-## Features
+## Architecture Diagram
+```mermaid
+graph TD
+  subgraph Clients
+    SwaggerUI["Swagger UI (Developer Client)"]
+    Slack["Slack (Receives Notifications)"]
+  end
 
+  subgraph Docker_Network["Docker Compose Network"]
+    
+    subgraph birthdaybuddy_app["Container: birthdaybuddy_app (FastAPI)"]
+      Router["API Routers"]
+      Auth["Auth Layer"]
+      Services["Service Layer"]
+      Scheduler["APScheduler"]
+      SlackService["Slack Service (sends to webhook)"]
+      EnvVars[".env (JWT_SECRET, DB_URL, etc.)"]
+      LogVolume["Mounted Volume: /app/logs"]
+    end
+
+    subgraph postgres["Container: postgres (Database)"]
+      Postgres[(PostgreSQL)]
+      PgVolume["Volume: postgres_data"]
+    end
+
+    subgraph redis["Container: redis (Cache)"]
+      Redis[(Redis Cache)]
+    end
+
+  end
+
+  SwaggerUI --> Router
+
+  Router -.->|Depends on| Auth
+  Router --> Services
+
+  Services --> Redis
+  Services --> Postgres
+  Services --> SlackService
+  
+  SlackService --> Slack
+
+  Scheduler --> Services
+
+  Router --> LogVolume
+  Services --> LogVolume
+  Scheduler --> LogVolume
+
+  %% Volumes and env
+  EnvVars --> birthdaybuddy_app
+  PgVolume --> postgres
+
+## Features
 - JWT-based user authentication
 - Multi-workspace support
 - CRUD operations for Users, Birthdays, and Workspaces
@@ -35,7 +85,6 @@ This is a backend-only service. It exposes a REST API with:
 
 
 ## Authentication
-
 Authentication is powered by FastAPI Users. User passwords are securely hashed using **bcrypt**. All protected routes require a valid JWT.
 
 Auth Endpoints:
@@ -47,7 +96,6 @@ Auth Endpoints:
 
 ## Setup Instructions
 ### 1. Clone the repository
-
 ```powershell
 git clone https://github.com/Cammm111/birthday-buddy.git
 cd birthday-buddy
@@ -105,7 +153,6 @@ docker compose -f config/docker-compose.yaml up --build
 - `GET /utils/cache/birthdays/all` — Return only cached birthday data (admin only)
 - `GET /utils/cache/users/all` — Return only cached user data (admin only)
 - `GET /utils/cache/workspaces/all` — Return only cached workspace data (admin only)
-
 
 
 ## Application Package Structure
@@ -172,7 +219,7 @@ Work in progress...
 
 ## Supporting Systems
 - PostgreSQL (Docker): Stores all persistent data (users, birthdays, workspaces) in a PostgreSQL container                  
-- Redis (Docker): Caches birthday lists by user to reduce database load
+- Redis (Docker): Caches user, birthday, and workspace lists to reduce database load
 - Slack Webhooks: Slack channels receive birthday messages based on the workspace configuration
 - APScheduler: Schedules and runs the birthday_job daily at 9am
 - Logging: Timestamps and logs all service activity to /logs/, with a new .log file created per app restart

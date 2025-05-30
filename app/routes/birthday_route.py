@@ -24,8 +24,7 @@ def list_birthdays_by_workspace(
     session: Session = Depends(get_session),
     user=Depends(current_active_user),
 ):
-    # Delegate to service (which handles user-scoped caching)
-    return birthday_service.list_birthdays_by_workspace(
+    return birthday_service.list_birthdays_by_workspace( # Delegate to service (which handles user-scoped caching)
         session,
         workspace_id=user.workspace_id,
         user_id=user.user_id,
